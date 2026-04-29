@@ -1,0 +1,2020 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAS-03</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --card: #111827;
+    --card2: #1a2235;
+    --accent: #f97316;
+    --accent2: #3b82f6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --purple: #a855f7;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --border: #1e293b;
+    --border2: #263352;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; overflow-x:hidden; }
+
+  /* ===== NOTIFICATION SYSTEM ===== */
+  #notif-container {
+    position:fixed; top:16px; right:16px; z-index:99999;
+    display:flex; flex-direction:column; gap:10px;
+    max-width:360px; pointer-events:none;
+  }
+  .notif {
+    background:var(--card); border-radius:12px;
+    padding:12px 16px; display:flex; align-items:flex-start; gap:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.5);
+    pointer-events:all; cursor:pointer;
+    transform:translateX(120%); transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+    border-left:4px solid var(--border2);
+    min-width:280px;
+  }
+  .notif.show { transform:translateX(0); }
+  .notif.fade-out { transform:translateX(120%); transition:transform .3s ease-in; }
+  .notif-icon { width:20px; height:20px; flex-shrink:0; margin-top:1px; }
+  .notif-body { flex:1; min-width:0; }
+  .notif-title { font-weight:700; font-size:.85rem; margin-bottom:2px; }
+  .notif-msg { font-size:.78rem; color:var(--muted); line-height:1.4; word-break:break-word; }
+  .notif-time { font-size:.7rem; color:var(--muted); margin-top:4px; opacity:.7; }
+  .notif-close { font-size:1rem; color:var(--muted); line-height:1; cursor:pointer; flex-shrink:0; padding:2px; }
+  .notif-close:hover { color:var(--text); }
+  .notif-progress { position:absolute; bottom:0; left:0; height:2px; border-radius:0 0 0 8px; transition:width linear; }
+  .notif { position:relative; }
+
+  .notif.type-error { border-left-color:var(--red); }
+  .notif.type-error .notif-icon svg { color:var(--red); }
+  .notif.type-error .notif-title { color:var(--red); }
+  .notif.type-error .notif-progress { background:var(--red); }
+
+  .notif.type-warn { border-left-color:var(--yellow); }
+  .notif.type-warn .notif-icon svg { color:var(--yellow); }
+  .notif.type-warn .notif-title { color:var(--yellow); }
+  .notif.type-warn .notif-progress { background:var(--yellow); }
+
+  .notif.type-success { border-left-color:var(--green); }
+  .notif.type-success .notif-icon svg { color:var(--green); }
+  .notif.type-success .notif-title { color:var(--green); }
+  .notif.type-success .notif-progress { background:var(--green); }
+
+  .notif.type-info { border-left-color:var(--accent2); }
+  .notif.type-info .notif-icon svg { color:var(--accent2); }
+  .notif.type-info .notif-title { color:var(--accent2); }
+  .notif.type-info .notif-progress { background:var(--accent2); }
+
+  /* ===== STAT FULLSCREEN MODAL ===== */
+  #stat-modal {
+    position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:50000;
+    display:none; align-items:center; justify-content:center;
+    backdrop-filter:blur(6px);
+  }
+  #stat-modal.show { display:flex; }
+  .stat-modal-box {
+    background:var(--card); border:1px solid var(--border2);
+    border-radius:20px; padding:32px 40px; min-width:300px;
+    text-align:center; box-shadow:0 0 80px rgba(0,0,0,.6);
+    position:relative; animation: popIn .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes popIn { from{transform:scale(.7);opacity:0} to{transform:scale(1);opacity:1} }
+  .stat-modal-label { font-size:.9rem; color:var(--muted); margin-bottom:8px; }
+  .stat-modal-value { font-size:4rem; font-weight:900; font-family:monospace; line-height:1; }
+  .stat-modal-unit { font-size:1.2rem; color:var(--muted); margin-top:4px; }
+  .stat-modal-close {
+    position:absolute; top:12px; right:16px; background:none; border:none;
+    color:var(--muted); cursor:pointer; font-size:1.4rem; line-height:1;
+  }
+  .stat-modal-close:hover { color:var(--text); }
+
+  /* ===== SPLASH ===== */
+  #splash {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(ellipse at 40% 60%, #1a2235 0%, #0a0e1a 65%);
+  }
+  .splash-box {
+    text-align:center; max-width:540px; width:90%;
+    background:var(--card); border:1px solid var(--border2); border-radius:24px; padding:52px 36px;
+    box-shadow:0 0 100px rgba(249,115,22,.12);
+  }
+  .splash-logo { margin:0 auto 24px; width:56px; height:56px; }
+  .splash-title { font-size:2.4rem; font-weight:900; letter-spacing:-1px; margin-bottom:6px; }
+  .splash-title span { color:var(--accent); }
+  .splash-sub { color:var(--muted); font-size:.95rem; margin-bottom:44px; line-height:1.6; }
+  .splash-cards { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; }
+  .role-card {
+    flex:1; min-width:190px; background:var(--card2); border:2px solid var(--border);
+    border-radius:18px; padding:32px 24px; cursor:pointer; transition:all .25s;
+  }
+  .role-card:hover { border-color:var(--accent); transform:translateY(-5px); box-shadow:0 12px 48px rgba(249,115,22,.22); }
+  .role-icon { width:44px; height:44px; margin:0 auto 16px; }
+  .role-card h2 { font-size:1.15rem; font-weight:700; margin-bottom:8px; }
+  .role-card p { color:var(--muted); font-size:.83rem; line-height:1.5; }
+
+  /* ===== TOPBAR ===== */
+  .topbar {
+    background:var(--card); border-bottom:1px solid var(--border);
+    padding:0 20px; display:flex; align-items:center; gap:12px; height:52px; flex-wrap:nowrap;
+  }
+  .topbar-title { font-size:1.05rem; font-weight:800; color:var(--accent); flex:1; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .topbar-title svg { width:18px; height:18px; }
+  .badge {
+    background:var(--card2); border:1px solid var(--border);
+    border-radius:8px; padding:4px 10px; font-size:.75rem; color:var(--muted);
+    display:flex; align-items:center; gap:5px; white-space:nowrap;
+  }
+  .badge.online { border-color:var(--green); color:var(--green); }
+  .badge.offline { border-color:var(--red); color:var(--red); }
+  .badge.warning { border-color:var(--yellow); color:var(--yellow); }
+  .dot { width:7px; height:7px; border-radius:50%; background:currentColor; animation:pulse 1.5s infinite; flex-shrink:0; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    padding:10px 22px; border-radius:10px; border:none; cursor:pointer;
+    font-size:.88rem; font-weight:700; transition:all .18s; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn svg { width:15px; height:15px; }
+  .btn-accent { background:var(--accent); color:#fff; }
+  .btn-accent:hover { background:#ea6f0f; transform:scale(1.02); }
+  .btn-green { background:var(--green); color:#fff; }
+  .btn-green:hover { background:#16a34a; }
+  .btn-red { background:var(--red); color:#fff; }
+  .btn-red:hover { background:#dc2626; }
+  .btn-blue { background:var(--accent2); color:#fff; }
+  .btn-blue:hover { background:#2563eb; }
+  .btn-ghost { background:transparent; border:1.5px solid var(--border2); color:var(--text); }
+  .btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-sm { padding:7px 14px; font-size:.8rem; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; transform:none !important; }
+
+  /* ===== BEACON PAGE ===== */
+  #beacon-page, #control-page, #stats-page { display:none; min-height:100vh; flex-direction:column; }
+  .beacon-content {
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:20px; padding:28px 16px;
+  }
+  .uuid-panel {
+    background:var(--card); border:1px solid var(--border2); border-radius:20px;
+    padding:28px 36px; text-align:center; width:100%; max-width:460px;
+  }
+  .uuid-label { color:var(--muted); font-size:.85rem; margin-bottom:8px; font-weight:500; }
+  .uuid-display {
+    font-size:3rem; font-weight:900; letter-spacing:8px; color:var(--accent);
+    font-family:'Courier New', monospace; margin:8px 0 14px; user-select:all;
+  }
+  .uuid-sub { color:var(--muted); font-size:.78rem; }
+
+  .sensors-grid {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+    gap:10px; width:100%; max-width:580px;
+  }
+  .sensor-card {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:14px 12px; text-align:center; transition:border-color .3s;
+  }
+  .sensor-card .s-icon { width:28px; height:28px; margin:0 auto 6px; color:var(--muted); }
+  .sensor-card .s-label { color:var(--muted); font-size:.72rem; margin-bottom:4px; font-weight:500; }
+  .sensor-card .s-value { font-size:1rem; font-weight:700; color:var(--accent); font-family:monospace; }
+  .sensor-card.active { border-color:var(--green); }
+  .sensor-card.active .s-icon { color:var(--green); }
+
+  .status-bar {
+    width:100%; max-width:460px; background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:14px 18px;
+  }
+  .status-bar h3 { font-size:.82rem; color:var(--muted); margin-bottom:8px; font-weight:600; display:flex; align-items:center; gap:6px; }
+  .log-entry {
+    font-size:.75rem; color:var(--text); padding:4px 0; border-bottom:1px solid var(--border);
+    display:flex; gap:8px;
+  }
+  .log-entry:last-child { border:none; }
+  .log-time { color:var(--muted); flex-shrink:0; }
+  .log-msg { flex:1; }
+  .log-entry.log-err .log-msg { color:var(--red); }
+  .log-entry.log-ok .log-msg { color:var(--green); }
+
+  /* ===== CONTROL PAGE ===== */
+  #control-page { display:none; flex-direction:column; height:100vh; }
+  .control-body { flex:1; display:grid; grid-template-columns:1fr 360px; min-height:0; overflow:hidden; }
+  @media(max-width:900px) {
+    .control-body { grid-template-columns:1fr; grid-template-rows:380px 1fr; }
+  }
+  #map { width:100%; height:100%; min-height:380px; }
+  .right-panel {
+    background:var(--card); border-left:1px solid var(--border);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+
+  /* PANEL TABS */
+  .panel-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg); }
+  .tab-btn {
+    flex:1; padding:11px 4px; background:transparent; border:none; color:var(--muted);
+    font-size:.78rem; font-weight:600; cursor:pointer; border-bottom:2px solid transparent;
+    transition:all .2s; display:flex; align-items:center; justify-content:center; gap:5px;
+  }
+  .tab-btn svg { width:13px; height:13px; }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); background:var(--card); }
+  .tab-btn:hover:not(.active) { color:var(--text); background:var(--card2); }
+  .tab-content { flex:1; overflow-y:auto; padding:14px; display:none; }
+  .tab-content.active { display:block; }
+
+  /* STAT ROWS with eye button */
+  .stat-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--border); gap:8px;
+  }
+  .stat-row:last-child { border:none; }
+  .stat-label { color:var(--muted); font-size:.8rem; display:flex; align-items:center; gap:5px; }
+  .stat-label svg { width:12px; height:12px; opacity:.6; }
+  .stat-value-wrap { display:flex; align-items:center; gap:6px; }
+  .stat-value { font-weight:700; font-size:.95rem; font-family:monospace; }
+  .stat-value.accent { color:var(--accent); }
+  .stat-value.green { color:var(--green); }
+  .stat-value.blue { color:var(--accent2); }
+  .stat-value.red { color:var(--red); }
+  .stat-value.yellow { color:var(--yellow); }
+  .stat-value.purple { color:var(--purple); }
+  .eye-btn {
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+    border-radius:6px; padding:3px 5px; cursor:pointer; color:var(--muted);
+    transition:all .2s; display:flex; align-items:center;
+  }
+  .eye-btn:hover { background:rgba(255,255,255,.1); color:var(--text); border-color:var(--accent); }
+  .eye-btn svg { width:12px; height:12px; }
+
+  /* SPEED GAUGE */
+  .speed-gauge {
+    margin:10px 0 14px; text-align:center;
+    background:var(--card2); border-radius:14px; padding:18px 14px;
+    border:1px solid var(--border);
+  }
+  .gauge-ring { position:relative; width:110px; height:110px; margin:0 auto 8px; }
+  .gauge-ring svg { width:110px; height:110px; transform:rotate(-90deg); }
+  .gauge-ring circle { fill:none; stroke-width:10; }
+  .gauge-bg { stroke:#1e293b; }
+  .gauge-fill { stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset .4s ease; }
+  .gauge-label {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:1.35rem; font-weight:900; color:var(--accent); text-align:center; line-height:1.1;
+  }
+  .gauge-unit { font-size:.65rem; color:var(--muted); font-weight:400; }
+  .gauge-trend { font-size:.7rem; color:var(--muted); }
+  .gauge-peak { font-size:.78rem; color:var(--muted); margin-top:4px; }
+  .gauge-peak span { color:var(--accent); font-weight:700; }
+
+  .mini-chart-wrap { height:140px; margin:10px 0; }
+
+  /* ACCEL BARS */
+  .accel-bars { display:flex; flex-direction:column; gap:7px; }
+  .accel-bar { display:flex; align-items:center; gap:8px; }
+  .accel-bar .axis { font-size:.72rem; color:var(--muted); width:14px; font-weight:700; }
+  .accel-bar-track { flex:1; height:8px; background:var(--card2); border-radius:4px; overflow:hidden; }
+  .accel-bar-fill { height:100%; border-radius:4px; transition:width .25s; }
+  .ax-fill { background:var(--red); }
+  .ay-fill { background:var(--green); }
+  .az-fill { background:var(--accent2); }
+  .accel-bar .av { font-size:.72rem; color:var(--text); font-family:monospace; width:62px; text-align:right; }
+
+  /* GYRO DISPLAY */
+  .gyro-display {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px;
+  }
+  .gyro-cell {
+    background:var(--card2); border-radius:8px; padding:8px; text-align:center;
+    border:1px solid var(--border);
+  }
+  .gyro-cell .gc-label { font-size:.68rem; color:var(--muted); margin-bottom:2px; }
+  .gyro-cell .gc-val { font-size:.88rem; font-weight:700; font-family:monospace; }
+
+  /* CONTROL PANEL BOTTOM */
+  .control-btns {
+    padding:12px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px;
+    background:var(--bg);
+  }
+  .ctrl-actions-row { display:flex; gap:6px; }
+  .ctrl-actions-row .btn { flex:1; justify-content:center; }
+
+  /* RACE TIMER */
+  .race-timer {
+    font-size:1.05rem; font-weight:900; font-family:monospace; color:var(--accent);
+    letter-spacing:2px; padding:4px 10px;
+    background:var(--card2); border-radius:8px; border:1px solid var(--border);
+  }
+  .race-timer.running { color:var(--green); border-color:var(--green); animation:timerPulse 1s infinite; }
+  @keyframes timerPulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+
+  /* CONNECT PAGE */
+  .conn-form { padding:16px; }
+  .input-styled {
+    width:100%; padding:12px 16px; background:var(--card2); border:1.5px solid var(--border);
+    border-radius:10px; color:var(--text); font-size:1.3rem; letter-spacing:6px;
+    font-family:monospace; text-align:center; font-weight:700; outline:none; transition:border-color .2s;
+  }
+  .input-styled:focus { border-color:var(--accent); }
+  .input-label { color:var(--muted); font-size:.8rem; margin-bottom:8px; display:block; }
+  .or-div { text-align:center; color:var(--muted); font-size:.78rem; }
+
+  /* ===== STATS PAGE ===== */
+  #stats-page { display:none; flex-direction:column; overflow-y:auto; }
+  .stats-grid {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:18px; padding:20px 24px;
+  }
+  .stats-card {
+    background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px;
+    position:relative;
+  }
+  .stats-card h3 {
+    font-size:.88rem; font-weight:700; margin-bottom:14px;
+    display:flex; align-items:center; gap:7px; color:var(--text);
+  }
+  .stats-card h3 svg { width:15px; height:15px; color:var(--accent); }
+  .chart-wrap { height:190px; position:relative; }
+  .stats-summary {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:16px 24px 0;
+  }
+  .sum-cell {
+    background:var(--card2); border-radius:10px; padding:12px; text-align:center;
+    border:1px solid var(--border);
+  }
+  .sum-cell .sv { font-size:1.35rem; font-weight:900; color:var(--accent); }
+  .sum-cell .sl { font-size:.68rem; color:var(--muted); margin-top:3px; }
+  .map-full { height:340px; border-radius:10px; overflow:hidden; }
+  .action-bar { padding:16px 24px; display:flex; gap:10px; flex-wrap:wrap; }
+
+  /* FINISH OVERLAY */
+  .finish-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.8);
+    display:none; align-items:center; justify-content:center; z-index:9999;
+    backdrop-filter:blur(4px);
+  }
+  .finish-box {
+    background:var(--card); border:2px solid var(--accent); border-radius:24px;
+    padding:40px 44px; text-align:center; max-width:420px; width:90%;
+    animation:popIn .3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .finish-box .finish-icon { width:56px; height:56px; margin:0 auto 16px; color:var(--accent); }
+  .finish-box h2 { font-size:1.9rem; font-weight:900; color:var(--accent); margin-bottom:6px; }
+  .finish-box p { color:var(--muted); margin-bottom:8px; }
+  .finish-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:20px; }
+
+  /* MAP LAYER CONTROL */
+  .map-layer-ctrl {
+    position:absolute; bottom:80px; right:10px; z-index:1000;
+    background:var(--card); border:1px solid var(--border2);
+    border-radius:10px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.4);
+  }
+  .map-layer-btn {
+    display:block; padding:7px 12px; font-size:.75rem; font-weight:600;
+    cursor:pointer; color:var(--muted); border:none; background:transparent;
+    width:100%; text-align:left; transition:all .15s; border-bottom:1px solid var(--border);
+  }
+  .map-layer-btn:last-child { border-bottom:none; }
+  .map-layer-btn.active, .map-layer-btn:hover { background:var(--accent); color:#fff; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width:4px; height:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:10px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+
+  /* SIGNAL STRENGTH BARS */
+  .signal-bars { display:flex; align-items:flex-end; gap:2px; height:14px; }
+  .signal-bar { width:3px; background:var(--border2); border-radius:1px; }
+  .signal-bar.active { background:var(--green); }
+  .signal-bar:nth-child(1) { height:4px; }
+  .signal-bar:nth-child(2) { height:7px; }
+  .signal-bar:nth-child(3) { height:10px; }
+  .signal-bar:nth-child(4) { height:14px; }
+
+  /* SECTION HEADER */
+  .section-hdr {
+    font-size:.72rem; font-weight:700; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.08em; padding:8px 0 4px; margin-top:6px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .section-hdr::after { content:''; flex:1; height:1px; background:var(--border); }
+</style>
+</head>
+<body>
+
+<!-- NOTIFICATION CONTAINER -->
+<div id="notif-container"></div>
+
+<!-- STAT FULLSCREEN MODAL -->
+<div id="stat-modal">
+  <div class="stat-modal-box">
+    <button class="stat-modal-close" onclick="closeStatModal()">×</button>
+    <div class="stat-modal-label" id="modal-label">—</div>
+    <div class="stat-modal-value" id="modal-value" style="color:var(--accent)">—</div>
+    <div class="stat-modal-unit" id="modal-unit"></div>
+  </div>
+</div>
+
+<!-- ===== SPLASH ===== -->
+<div id="splash">
+  <div class="splash-box">
+    <svg class="splash-logo" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="56" height="56" rx="14" fill="#1a2235"/>
+      <path d="M10 34 L28 18 L46 34" stroke="#f97316" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="18" cy="38" r="4" stroke="#f97316" stroke-width="2.5" fill="none"/>
+      <circle cx="38" cy="38" r="4" stroke="#f97316" stroke-width="2.5" fill="none"/>
+      <path d="M22 38 L34 38" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
+      <path d="M28 18 L28 28" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2"/>
+    </svg>
+    <div class="splash-title"><span>CAS-03</span> Tracker</div>
+    <div class="splash-sub">Système de tracking temps réel<br>pour course de caisse à savon</div>
+    <div class="splash-cards">
+      <div class="role-card" onclick="chooseRole('beacon')">
+        <svg class="role-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="22" r="5" fill="#f97316"/>
+          <circle cx="22" cy="22" r="10" stroke="#f97316" stroke-width="1.5" stroke-dasharray="3 2" opacity=".6"/>
+          <circle cx="22" cy="22" r="16" stroke="#f97316" stroke-width="1" stroke-dasharray="2 3" opacity=".3"/>
+          <path d="M22 8 L22 5 M22 39 L22 36 M8 22 L5 22 M39 22 L36 22" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <h2>Balise GPS</h2>
+        <p>Installer sur le véhicule. Transmet position GPS, accéléromètre et gyroscope en temps réel.</p>
+      </div>
+      <div class="role-card" onclick="chooseRole('control')">
+        <svg class="role-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="14" width="32" height="20" rx="4" stroke="#f97316" stroke-width="1.5"/>
+          <rect x="10" y="18" width="12" height="8" rx="2" fill="#1a2235" stroke="#64748b" stroke-width="1"/>
+          <circle cx="30" cy="19" r="2" fill="#22c55e"/>
+          <circle cx="36" cy="19" r="2" fill="#ef4444"/>
+          <circle cx="30" cy="25" r="2" fill="#3b82f6"/>
+          <circle cx="36" cy="25" r="2" fill="#eab308"/>
+          <path d="M16 34 L14 40 M28 34 L30 40 M14 40 L30 40" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 21 L14 21 M10 23 L13 23" stroke="#94a3b8" stroke-width="1"/>
+        </svg>
+        <h2>Poste de Commande</h2>
+        <p>Connectez-vous via UUID. Suivez la course, contrôlez et analysez toutes les données.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BEACON PAGE ===== -->
+<div id="beacon-page" style="display:none;flex-direction:column;">
+  <div class="topbar">
+    <div class="topbar-title">
+      <svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="3" fill="currentColor"/><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5" opacity=".6"/><circle cx="9" cy="9" r="9" stroke="currentColor" stroke-width=".8" stroke-dasharray="1.5 2" opacity=".3"/></svg>
+      Mode Balise
+    </div>
+    <div class="badge" id="b-gps-badge">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 8 L6 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M3.5 4.5 C3.5 3 4.6 2 6 2 C7.4 2 8.5 3 8.5 4.5" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+      GPS: —
+    </div>
+    <div class="badge" id="b-peer-badge">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6 C2 4 3.5 2.5 6 2.5 C8.5 2.5 10 4 10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/><circle cx="6" cy="8.5" r="1.5" fill="currentColor"/></svg>
+      Pair: attente
+    </div>
+    <div id="b-status-badge" class="badge">
+      <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor" opacity=".3"/><circle cx="5" cy="5" r="2.5" fill="currentColor"/></svg>
+      Arrêté
+    </div>
+  </div>
+  <div class="beacon-content">
+    <div class="uuid-panel">
+      <div class="uuid-label">UUID de la Balise</div>
+      <div class="uuid-display" id="beacon-uuid">— — — —</div>
+      <div class="uuid-sub">Communiquez ce code au poste de commande</div>
+      <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="copyUUID()">
+          <svg viewBox="0 0 15 15" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 9 L2 2 L9 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/></svg>
+          Copier
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="regenUUID()">
+          <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C9.5 2 11.3 3 12.3 4.5 M13 7.5 C13 10.5 10.5 13 7.5 13 C5.5 13 3.7 12 2.7 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11 2 L13 4 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9 L2 11 L4 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Régénérer
+        </button>
+      </div>
+    </div>
+    <div class="sensors-grid" id="sensors-grid">
+      <div class="sensor-card" id="sc-gps">
+        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/><path d="M14 17 L14 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 10.5 C8 7 10.7 4.5 14 4.5 C17.3 4.5 20 7 20 10.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M5 9 C5 5 9 2 14 2 C19 2 23 5 23 9" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round" opacity=".4"/></svg>
+        <div class="s-label">GPS</div>
+        <div class="s-value" id="sv-gps">—</div>
+      </div>
+      <div class="sensor-card" id="sc-alt">
+        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><path d="M4 22 L11 10 L17 16 L22 8 L26 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 22 L26 22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".4"/></svg>
+        <div class="s-label">Altitude</div>
+        <div class="s-value" id="sv-alt">— m</div>
+      </div>
+      <div class="sensor-card" id="sc-speed">
+        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><path d="M5 20 A10 10 0 0 1 23 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M14 20 L18 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="14" cy="20" r="2" fill="currentColor"/></svg>
+        <div class="s-label">Vitesse GPS</div>
+        <div class="s-value" id="sv-speed">— km/h</div>
+      </div>
+      <div class="sensor-card" id="sc-acc">
+        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><path d="M14 4 L14 8 M14 20 L14 24 M4 14 L8 14 M20 14 L24 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="14" cy="14" r="6" stroke="currentColor" stroke-width="1.8"/><circle cx="14" cy="14" r="2.5" fill="currentColor" opacity=".6"/></svg>
+        <div class="s-label">Accéléro.</div>
+        <div class="s-value" id="sv-acc">—</div>
+      </div>
+      <div class="sensor-card" id="sc-gyro">
+        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2"/><circle cx="14" cy="14" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M4 14 L10 14 M18 14 L24 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <div class="s-label">Gyroscope</div>
+        <div class="s-value" id="sv-gyro">—</div>
+      </div>
+      <div class="sensor-card" id="sc-heading">
+        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M14 7 L14 4 M14 24 L14 21 M7 14 L4 14 M24 14 L21 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M14 10 L16 16 L14 15 L12 16 Z" fill="currentColor"/></svg>
+        <div class="s-label">Cap</div>
+        <div class="s-value" id="sv-heading">—°</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+      <button class="btn btn-green" id="btn-start-beacon" onclick="startBeacon()">
+        <svg viewBox="0 0 15 15" fill="none"><path d="M4 2.5 L12 7.5 L4 12.5 Z" fill="currentColor"/></svg>
+        Démarrer la Balise
+      </button>
+      <button class="btn btn-red" id="btn-stop-beacon" onclick="stopBeacon()" style="display:none;">
+        <svg viewBox="0 0 15 15" fill="none"><rect x="3" y="3" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+        Arrêter
+      </button>
+    </div>
+    <div class="status-bar">
+      <h3>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 6 L4 9 L11 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Journal d'activité
+      </h3>
+      <div id="beacon-log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CONTROL CONNECT OVERLAY ===== -->
+<div id="control-connect" style="display:none;min-height:100vh;flex-direction:column;">
+  <div class="topbar">
+    <div class="topbar-title">
+      <svg viewBox="0 0 18 18" fill="none"><rect x="1" y="5" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/><rect x="3.5" y="7" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1"/><circle cx="13" cy="8" r="1" fill="currentColor"/><circle cx="15.5" cy="8" r="1" fill="currentColor"/><circle cx="13" cy="11" r="1" fill="currentColor"/><circle cx="15.5" cy="11" r="1" fill="currentColor"/></svg>
+      Poste de Commande
+    </div>
+    <div class="badge" id="ctrl-peer-badge">Initialisation...</div>
+  </div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;">
+    <div class="uuid-panel" style="max-width:400px;">
+      <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:18px;text-align:left;">Connexion à une Balise</div>
+      <div id="connect-area" style="display:flex;flex-direction:column;gap:10px;">
+        <label class="input-label">UUID de la balise (8 chiffres)</label>
+        <input class="input-styled" id="uuid-input" maxlength="8" placeholder="00000000" type="text" oninput="this.value=this.value.replace(/\D/g,'')"/>
+        <button class="btn btn-accent" onclick="connectToBeacon()" style="width:100%;justify-content:center;">
+          <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C10.5 2 13 4.5 13 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/><circle cx="7.5" cy="10" r="2.5" fill="currentColor"/></svg>
+          Connecter à la Balise
+        </button>
+        <div class="or-div">— ou —</div>
+        <button class="btn btn-ghost" onclick="simulateBeacon()" style="width:100%;justify-content:center;font-size:.82rem;">
+          <svg viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3.5" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 7 L5 9 M7.5 6 L7.5 9 M10 8 L10 9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Mode Simulation (démo)
+        </button>
+      </div>
+      <div id="connecting-state" style="display:none;text-align:center;padding:28px;">
+        <div style="margin:0 auto 16px;width:40px;height:40px;">
+          <svg viewBox="0 0 40 40" fill="none" style="animation:spin 1s linear infinite">
+            <circle cx="20" cy="20" r="16" stroke="var(--border2)" stroke-width="4"/>
+            <path d="M20 4 A16 16 0 0 1 36 20" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div style="color:var(--muted);font-size:.88rem;">Connexion en cours...</div>
+        <div style="color:var(--muted);font-size:.75rem;margin-top:6px;opacity:.7;">Timeout dans <span id="conn-countdown">10</span>s</div>
+      </div>
+    </div>
+  </div>
+</div>
+<style>@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}</style>
+
+<!-- ===== CONTROL PAGE ===== -->
+<div id="control-page" style="display:none;flex-direction:column;height:100vh;">
+  <div class="topbar">
+    <div class="topbar-title">
+      <svg viewBox="0 0 18 18" fill="none"><path d="M3 14 L9 5 L15 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="15" r="1.8" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="12" cy="15" r="1.8" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
+      CAS-03 <span id="ctrl-uuid-display" style="color:var(--muted);font-weight:400;font-size:.82rem;margin-left:4px;"></span>
+    </div>
+    <div class="race-timer" id="race-timer">00:00:00</div>
+    <div class="badge" id="ctrl-conn-badge">
+      <div class="signal-bars">
+        <div class="signal-bar" id="sig1"></div>
+        <div class="signal-bar" id="sig2"></div>
+        <div class="signal-bar" id="sig3"></div>
+        <div class="signal-bar" id="sig4"></div>
+      </div>
+      Connecté
+    </div>
+    <div class="badge" id="ctrl-gps-badge">GPS —</div>
+    <button class="btn btn-red btn-sm" id="btn-stop-race" onclick="stopRace()">
+      <svg viewBox="0 0 15 15" fill="none"><rect x="2.5" y="2.5" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
+      Stop
+    </button>
+  </div>
+  <div class="control-body" style="flex:1;overflow:hidden;">
+    <div id="map" style="position:relative;"></div>
+    <div class="right-panel">
+      <div class="panel-tabs">
+        <button class="tab-btn active" onclick="switchTab('speed',this)">
+          <svg viewBox="0 0 13 13" fill="none"><path d="M2 10 A5.5 5.5 0 0 1 11 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/><path d="M6.5 10 L9 5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="10" r="1.2" fill="currentColor"/></svg>
+          Vitesse
+        </button>
+        <button class="tab-btn" onclick="switchTab('accel',this)">
+          <svg viewBox="0 0 13 13" fill="none"><path d="M6.5 2 L6.5 5 M6.5 8 L6.5 11 M2 6.5 L5 6.5 M8 6.5 L11 6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
+          Forces
+        </button>
+        <button class="tab-btn" onclick="switchTab('info',this)">
+          <svg viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M4 5 L9 5 M4 7 L7 7 M4 9 L8 9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+          Info
+        </button>
+      </div>
+
+      <!-- TAB SPEED -->
+      <div class="tab-content active" id="tab-speed">
+        <div class="speed-gauge">
+          <div class="gauge-ring">
+            <svg viewBox="0 0 110 110">
+              <circle class="gauge-bg" cx="55" cy="55" r="46" stroke-dasharray="289" stroke-dashoffset="0"/>
+              <circle class="gauge-fill" id="gauge-fill" cx="55" cy="55" r="46" stroke-dasharray="289" stroke-dashoffset="289"/>
+            </svg>
+            <div class="gauge-label">
+              <span id="gauge-speed">0</span><br>
+              <span class="gauge-unit">km/h</span>
+            </div>
+          </div>
+          <div class="gauge-peak">Max: <span id="gauge-peak-val">0</span> km/h</div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Vitesse max</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value accent" id="stat-vmax">0 km/h</span>
+            <button class="eye-btn" onclick="openStatModal('Vitesse maximale','stat-vmax','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Vitesse moy.</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value blue" id="stat-vmoy">0 km/h</span>
+            <button class="eye-btn" onclick="openStatModal('Vitesse moyenne','stat-vmoy','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Altitude</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value green" id="stat-alt">— m</span>
+            <button class="eye-btn" onclick="openStatModal('Altitude','stat-alt','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Dénivelé</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value yellow" id="stat-deniv">— m</span>
+            <button class="eye-btn" onclick="openStatModal('Dénivelé','stat-deniv','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Distance</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value" id="stat-dist">0 m</span>
+            <button class="eye-btn" onclick="openStatModal('Distance parcourue','stat-dist','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Cap</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value" id="stat-cap">—°</span>
+            <button class="eye-btn" onclick="openStatModal('Cap magnétique','stat-cap','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="section-hdr">Courbe de vitesse</div>
+        <div class="mini-chart-wrap"><canvas id="speed-chart"></canvas></div>
+      </div>
+
+      <!-- TAB ACCEL -->
+      <div class="tab-content" id="tab-accel">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;background:var(--card2);border-radius:12px;padding:14px;border:1px solid var(--border);">
+          <div style="flex:1;">
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:2px;">Accélération totale</div>
+            <div class="stat-value accent" id="accel-total" style="font-size:1.6rem;font-family:monospace;">0.00 g</div>
+          </div>
+          <button class="eye-btn" style="padding:6px 8px;" onclick="openStatModal('Accélération totale','accel-total','')">
+            <svg viewBox="0 0 12 12" fill="none" width="16" height="16"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
+          </button>
+        </div>
+        <div class="section-hdr">Axes d'accélération</div>
+        <div class="accel-bars">
+          <div class="accel-bar">
+            <span class="axis" style="color:var(--red)">X</span>
+            <div class="accel-bar-track"><div class="accel-bar-fill ax-fill" id="bar-ax" style="width:50%"></div></div>
+            <span class="av" id="val-ax">0.00</span>
+          </div>
+          <div class="accel-bar">
+            <span class="axis" style="color:var(--green)">Y</span>
+            <div class="accel-bar-track"><div class="accel-bar-fill ay-fill" id="bar-ay" style="width:50%"></div></div>
+            <span class="av" id="val-ay">0.00</span>
+          </div>
+          <div class="accel-bar">
+            <span class="axis" style="color:var(--accent2)">Z</span>
+            <div class="accel-bar-track"><div class="accel-bar-fill az-fill" id="bar-az" style="width:50%"></div></div>
+            <span class="av" id="val-az">0.00</span>
+          </div>
+        </div>
+        <div class="section-hdr">Gyroscope</div>
+        <div class="gyro-display">
+          <div class="gyro-cell">
+            <div class="gc-label">Roulis (α)</div>
+            <div class="gc-val" id="gyro-a" style="color:var(--purple)">0.0°/s</div>
+          </div>
+          <div class="gyro-cell">
+            <div class="gc-label">Tangage (β)</div>
+            <div class="gc-val" id="gyro-b" style="color:var(--accent2)">0.0°/s</div>
+          </div>
+          <div class="gyro-cell">
+            <div class="gc-label">Lacet (γ)</div>
+            <div class="gc-val" id="gyro-g" style="color:var(--green)">0.0°/s</div>
+          </div>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;">Courbe accélérations</div>
+        <div class="mini-chart-wrap"><canvas id="accel-chart"></canvas></div>
+        <div class="stat-row" style="margin-top:6px;">
+          <span class="stat-label">Choc max détecté</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value red" id="stat-shock">0.00 g</span>
+            <button class="eye-btn" onclick="openStatModal('Choc maximal détecté','stat-shock','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB INFO -->
+      <div class="tab-content" id="tab-info">
+        <div class="stat-row"><span class="stat-label">Latitude</span><span class="stat-value" id="info-lat">—</span></div>
+        <div class="stat-row"><span class="stat-label">Longitude</span><span class="stat-value" id="info-lon">—</span></div>
+        <div class="stat-row"><span class="stat-label">Précision GPS</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value" id="info-acc">—</span>
+            <button class="eye-btn" onclick="openStatModal('Précision GPS','info-acc','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="stat-row"><span class="stat-label">Points enregistrés</span><span class="stat-value accent" id="info-pts">0</span></div>
+        <div class="stat-row"><span class="stat-label">Fréquence données</span>
+          <div class="stat-value-wrap">
+            <span class="stat-value green" id="info-hz">— Hz</span>
+            <button class="eye-btn" onclick="openStatModal('Fréquence des données','info-hz','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+        <div class="stat-row"><span class="stat-label">Transport</span><span class="stat-value green" id="info-conn">—</span></div>
+        <div class="section-hdr">Journal de données</div>
+        <div id="ctrl-log" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="control-btns">
+        <button class="btn btn-green" id="btn-start-race" onclick="startRace()" style="justify-content:center;">
+          <svg viewBox="0 0 15 15" fill="none"><path d="M4 2.5 L12 7.5 L4 12.5 Z" fill="currentColor"/></svg>
+          Démarrer la Chronométrie
+        </button>
+        <div class="ctrl-actions-row">
+          <button class="btn btn-ghost btn-sm" onclick="centerMap()">
+            <svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 2 L7.5 0.5 M7.5 13 L7.5 14.5 M2 7.5 L0.5 7.5 M13 7.5 L14.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2" fill="currentColor" opacity=".4"/></svg>
+            Recentrer
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleMapLayer()">
+            <svg viewBox="0 0 15 15" fill="none"><path d="M7.5 1 L14 4.5 L7.5 8 L1 4.5 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="none"/><path d="M1 9 L7.5 12.5 L14 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/></svg>
+            Fond carte
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STATS PAGE ===== -->
+<div id="stats-page" style="display:none;flex-direction:column;overflow-y:auto;">
+  <div class="topbar">
+    <div class="topbar-title">
+      <svg viewBox="0 0 18 18" fill="none"><rect x="1" y="10" width="3" height="7" rx="1" fill="currentColor"/><rect x="6" y="6" width="3" height="11" rx="1" fill="currentColor" opacity=".7"/><rect x="11" y="2" width="3" height="15" rx="1" fill="currentColor" opacity=".5"/><rect x="14" y="8" width="3" height="9" rx="1" fill="currentColor" opacity=".3"/></svg>
+      Analyse Post-Course
+    </div>
+    <div style="color:var(--muted);font-size:.82rem;" id="stats-uuid-display"></div>
+  </div>
+  <div class="action-bar">
+    <button class="btn btn-green btn-sm" onclick="restartRace()">
+      <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C9.5 2 11.3 3 12.3 4.5 M13 7.5 C13 10.5 10.5 13 7.5 13 C5.5 13 3.7 12 2.7 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11 2 L13 4 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Relancer
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="exportData()">
+      <svg viewBox="0 0 15 15" fill="none"><path d="M7.5 2 L7.5 9 M4 6 L7.5 9 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12 L13 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Exporter CSV
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="goHome()">
+      <svg viewBox="0 0 15 15" fill="none"><path d="M1.5 7 L7.5 2 L13.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="7" width="7" height="6" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+      Accueil
+    </button>
+  </div>
+  <div class="stats-summary" style="padding:0 24px 0;">
+    <div class="sum-cell"><div class="sv" id="sum-vmax">—</div><div class="sl">Vitesse max</div></div>
+    <div class="sum-cell"><div class="sv" id="sum-vmoy">—</div><div class="sl">Vitesse moy.</div></div>
+    <div class="sum-cell"><div class="sv" id="sum-dist">—</div><div class="sl">Distance</div></div>
+    <div class="sum-cell"><div class="sv" id="sum-time">—</div><div class="sl">Temps de course</div></div>
+    <div class="sum-cell"><div class="sv" id="sum-deniv">—</div><div class="sl">Dénivelé</div></div>
+    <div class="sum-cell"><div class="sv" id="sum-shock">—</div><div class="sl">Choc max</div></div>
+  </div>
+  <div class="stats-grid">
+    <div class="stats-card" style="grid-column:1/-1;">
+      <h3><svg viewBox="0 0 15 15" fill="none"><rect x="1" y="1" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M4 8 C4 6 5 5 7.5 5 C10 5 11 6 11 8" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="7.5" cy="5" r="1.2" fill="currentColor" opacity=".6"/></svg> Tracé Complet du Circuit</h3>
+      <div class="map-full" id="stats-map"></div>
+    </div>
+    <div class="stats-card">
+      <h3><svg viewBox="0 0 15 15" fill="none"><path d="M1 11 L4 7 L7 9 L10 4 L14 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Profil d'Altitude</h3>
+      <div class="chart-wrap"><canvas id="elev-chart"></canvas></div>
+    </div>
+    <div class="stats-card">
+      <h3><svg viewBox="0 0 15 15" fill="none"><path d="M1 11 A7 7 0 0 1 14 11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/><path d="M7.5 11 L10.5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> Courbe de Vitesse</h3>
+      <div class="chart-wrap"><canvas id="full-speed-chart"></canvas></div>
+    </div>
+    <div class="stats-card">
+      <h3><svg viewBox="0 0 15 15" fill="none"><path d="M7.5 1 L7.5 5 M7.5 10 L7.5 14 M1 7.5 L5 7.5 M10 7.5 L14 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg> Analyse Forces G</h3>
+      <div class="chart-wrap"><canvas id="full-accel-chart"></canvas></div>
+    </div>
+    <div class="stats-card">
+      <h3><svg viewBox="0 0 15 15" fill="none"><rect x="1" y="8" width="3" height="5" rx=".8" fill="currentColor" opacity=".5"/><rect x="6" y="5" width="3" height="8" rx=".8" fill="currentColor" opacity=".7"/><rect x="11" y="2" width="3" height="11" rx=".8" fill="currentColor"/></svg> Distribution Vitesses</h3>
+      <div class="chart-wrap"><canvas id="speed-dist-chart"></canvas></div>
+    </div>
+    <div class="stats-card">
+      <h3><svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2.5 2"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg> Rotations Gyroscope</h3>
+      <div class="chart-wrap"><canvas id="gyro-chart"></canvas></div>
+    </div>
+    <div class="stats-card">
+      <h3><svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 1.5 L7.5 2.5 M7.5 12.5 L7.5 13.5 M1.5 7.5 L2.5 7.5 M12.5 7.5 L13.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M7.5 5 L8.5 8 L7.5 7.5 L6.5 8 Z" fill="currentColor"/></svg> Rose des Directions</h3>
+      <div class="chart-wrap"><canvas id="heading-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- FINISH OVERLAY -->
+<div class="finish-overlay" id="finish-overlay">
+  <div class="finish-box">
+    <svg class="finish-icon" viewBox="0 0 56 56" fill="none">
+      <rect width="56" height="56" rx="14" fill="var(--card2)"/>
+      <rect x="12" y="20" width="32" height="16" rx="2" stroke="var(--accent)" stroke-width="2"/>
+      <path d="M12 24 L44 24 M12 28 L44 28 M12 32 L44 32" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M16 20 L16 36 M22 20 L22 36 M28 20 L28 36 M34 20 L34 36 M40 20 L40 36" stroke="var(--bg)" stroke-width="1.5"/>
+    </svg>
+    <h2>Course Terminée</h2>
+    <p id="finish-time-display">Temps: 00:00:00</p>
+    <p style="color:var(--muted);font-size:.82rem;">Que souhaitez-vous faire ?</p>
+    <div class="finish-btns">
+      <button class="btn btn-green btn-sm" onclick="restartRace()">
+        <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C9.5 2 11.3 3 12.3 4.5 M13 7.5 C13 10.5 10.5 13 7.5 13 C5.5 13 3.7 12 2.7 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11 2 L13 4 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Relancer
+      </button>
+      <button class="btn btn-blue btn-sm" onclick="showStats()">
+        <svg viewBox="0 0 15 15" fill="none"><rect x="1" y="8" width="3" height="5" rx=".8" fill="currentColor" opacity=".5"/><rect x="6" y="5" width="3" height="8" rx=".8" fill="currentColor" opacity=".7"/><rect x="11" y="2" width="3" height="11" rx=".8" fill="currentColor"/></svg>
+        Voir les Stats
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="goHome()">Accueil</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  NOTIFICATION SYSTEM
+// ============================================================
+const NOTIF_ICONS = {
+  error: `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 6 L10 10.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="13.5" r="1" fill="currentColor"/></svg>`,
+  warn: `<svg viewBox="0 0 20 20" fill="none"><path d="M10 2.5 L18 17 L2 17 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/><path d="M10 8 L10 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="14.5" r="1" fill="currentColor"/></svg>`,
+  success: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 10 L8.5 13 L14.5 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  info: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 9 L10 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="6.5" r="1" fill="currentColor"/></svg>`
+};
+
+const NOTIF_TITLES = { error: 'Erreur', warn: 'Avertissement', success: 'Succès', info: 'Info' };
+
+function notify(type, message, detail='', duration=5000) {
+  const container = document.getElementById('notif-container');
+  const id = 'n_' + Date.now();
+  const div = document.createElement('div');
+  div.className = `notif type-${type}`;
+  div.id = id;
+  const time = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  div.innerHTML = `
+    <div class="notif-icon">${NOTIF_ICONS[type]}</div>
+    <div class="notif-body">
+      <div class="notif-title">${NOTIF_TITLES[type]}</div>
+      <div class="notif-msg">${message}${detail ? `<br><span style="opacity:.7;font-size:.72rem;">${detail}</span>` : ''}</div>
+      <div class="notif-time">${time}</div>
+    </div>
+    <div class="notif-close" onclick="dismissNotif('${id}')">×</div>
+    <div class="notif-progress" id="np_${id}" style="width:100%"></div>
+  `;
+  div.addEventListener('click', () => dismissNotif(id));
+  container.appendChild(div);
+  requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('show')));
+
+  // Animate progress bar
+  const bar = document.getElementById('np_' + id);
+  if (bar) {
+    bar.style.transition = `width ${duration}ms linear`;
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = '0%'; }));
+  }
+
+  setTimeout(() => dismissNotif(id), duration);
+}
+
+function dismissNotif(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('fade-out');
+  el.classList.remove('show');
+  setTimeout(() => el.remove(), 350);
+}
+
+// Legacy compat shim
+function showToast(msg, duration=3500) {
+  const isError = msg.includes('Erreur') || msg.includes('erreur') || msg.includes('impossible') || msg.includes('Impossible');
+  const isWarn = msg.includes('Avertissement') || msg.includes('attention') || msg.includes('Déconnecté');
+  const isSuccess = msg.includes('succès') || msg.includes('connecté') || msg.includes('copié') || msg.includes('exporté');
+  const type = isError ? 'error' : isWarn ? 'warn' : isSuccess ? 'success' : 'info';
+  const clean = msg.replace(/^[^a-zA-ZÀ-ÿ0-9]+/, '').trim();
+  notify(type, clean, '', duration);
+}
+
+function showAlert(msg, color) {
+  const isWarn = color === '#eab308' || color?.includes('eab');
+  const type = isWarn ? 'warn' : 'error';
+  const clean = msg.replace(/^[^a-zA-ZÀ-ÿ0-9]+/, '').trim();
+  notify(type, clean, '', 6000);
+}
+
+// ============================================================
+//  STAT MODAL
+// ============================================================
+function openStatModal(label, elId, unit) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  let val = el.textContent;
+  // Try to extract just the number for big display
+  const numMatch = val.match(/([\d.,-]+)/);
+  const restMatch = val.match(/([a-zA-Zéàü°/²%]+)/);
+  document.getElementById('modal-label').textContent = label;
+  if (numMatch) {
+    document.getElementById('modal-value').textContent = numMatch[0];
+    document.getElementById('modal-unit').textContent = restMatch ? restMatch[0] : (unit || '');
+  } else {
+    document.getElementById('modal-value').textContent = val;
+    document.getElementById('modal-unit').textContent = unit || '';
+  }
+  // color matching
+  const colors = ['accent','green','blue','red','yellow','purple'];
+  let color = 'var(--text)';
+  colors.forEach(c => { if (el.classList.contains(c)) color = `var(--${c})`; });
+  document.getElementById('modal-value').style.color = color;
+  document.getElementById('stat-modal').classList.add('show');
+}
+
+function closeStatModal() {
+  document.getElementById('stat-modal').classList.remove('show');
+}
+
+document.getElementById('stat-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('stat-modal')) closeStatModal();
+});
+
+// ============================================================
+//  GLOBAL STATE
+// ============================================================
+let role = null;
+let peer = null;
+let conn = null;
+let beaconUUID = null;
+let isRunning = false;
+let raceStartTime = null;
+let raceTimerInterval = null;
+let simInterval = null;
+
+let watchId = null;
+let accelData = {x:0,y:0,z:0};
+let gyroData = {alpha:0,beta:0,gamma:0};
+let lastPos = null;
+
+let racePoints = [];
+let speedHistory = [];
+let accelHistory = [];
+let timeLabels = [];
+let maxSpeed = 0;
+let sumSpeed = 0;
+let countSpeed = 0;
+let maxShock = 0;
+let totalDist = 0;
+let startAlt = null;
+let dataFreqSamples = [];
+let lastDataTime = 0;
+
+let map = null;
+let mapMarker = null;
+let mapPolyline = null;
+let mapLatLngs = [];
+let currentTileLayer = null;
+let currentLayerIdx = 0;
+
+let speedChartInst = null;
+let accelChartInst = null;
+
+// ============================================================
+//  MAP TILE LAYERS (alternatives pour éviter 403)
+// ============================================================
+const MAP_LAYERS = [
+  {
+    name: 'OpenStreetMap',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+    subdomains: 'abc',
+    crossOrigin: true
+  },
+  {
+    name: 'Carto Dark',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attr: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 19,
+    subdomains: 'abcd',
+    crossOrigin: true
+  },
+  {
+    name: 'Stadia Outdoors',
+    url: 'https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png',
+    attr: '&copy; Stadia Maps &copy; OpenStreetMap contributors',
+    maxZoom: 20,
+    crossOrigin: true
+  },
+  {
+    name: 'CyclOSM',
+    url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+    attr: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+    subdomains: 'abc',
+    crossOrigin: true
+  }
+];
+
+// ============================================================
+//  UTILITY
+// ============================================================
+function genUUID() {
+  return String(Math.floor(10000000 + Math.random() * 89999999));
+}
+
+function beaconLog(msg, cls='') {
+  const el = document.getElementById('beacon-log');
+  if (!el) return;
+  const d = document.createElement('div');
+  d.className = 'log-entry' + (cls ? ' ' + cls : '');
+  const t = document.createElement('span');
+  t.className = 'log-time';
+  t.textContent = new Date().toLocaleTimeString('fr-FR');
+  const m = document.createElement('span');
+  m.className = 'log-msg';
+  m.textContent = msg;
+  d.appendChild(t); d.appendChild(m);
+  el.insertBefore(d, el.firstChild);
+  if (el.children.length > 25) el.removeChild(el.lastChild);
+}
+
+function ctrlLog(msg, cls='') {
+  const el = document.getElementById('ctrl-log');
+  if (!el) return;
+  const d = document.createElement('div');
+  d.className = 'log-entry' + (cls ? ' ' + cls : '');
+  const t = document.createElement('span');
+  t.className = 'log-time';
+  t.textContent = new Date().toLocaleTimeString('fr-FR');
+  const m = document.createElement('span');
+  m.className = 'log-msg';
+  m.textContent = msg;
+  d.appendChild(t); d.appendChild(m);
+  el.insertBefore(d, el.firstChild);
+  if (el.children.length > 40) el.removeChild(el.lastChild);
+}
+
+function fmtTime(ms) {
+  const s = Math.floor(ms/1000);
+  const m = Math.floor(s/60);
+  const h = Math.floor(m/60);
+  return `${String(h).padStart(2,'0')}:${String(m%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+function calcDistance(lat1,lon1,lat2,lon2) {
+  const R=6371000; const dLat=(lat2-lat1)*Math.PI/180; const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function setSignalBars(strength) {
+  // strength 0-4
+  for (let i = 1; i <= 4; i++) {
+    const bar = document.getElementById('sig' + i);
+    if (bar) bar.classList.toggle('active', i <= strength);
+  }
+}
+
+// ============================================================
+//  ROLE SELECTION
+// ============================================================
+function chooseRole(r) {
+  role = r;
+  document.getElementById('splash').style.display = 'none';
+  if (r === 'beacon') initBeacon();
+  else initControl();
+}
+
+// ============================================================
+//  BEACON ROLE
+// ============================================================
+function initBeacon() {
+  const pg = document.getElementById('beacon-page');
+  pg.style.display = 'flex';
+  beaconUUID = genUUID();
+  document.getElementById('beacon-uuid').textContent = beaconUUID;
+  beaconLog('Balise initialisée', 'log-ok');
+  initPeerBeacon();
+}
+
+function initPeerBeacon() {
+  document.getElementById('b-peer-badge').textContent = 'Connexion réseau...';
+  peer = new Peer(beaconUUID, {
+    host: '0.peerjs.com', port: 443, path: '/', secure: true,
+    config: { iceServers: [
+      {urls:'stun:stun.l.google.com:19302'},
+      {urls:'stun:stun1.l.google.com:19302'}
+    ]}
+  });
+  peer.on('open', id => {
+    beaconLog(`Réseau P2P actif — ID: ${id}`, 'log-ok');
+    document.getElementById('b-peer-badge').className = 'badge online';
+    document.getElementById('b-peer-badge').innerHTML = '<span class="dot"></span> En ligne';
+  });
+  peer.on('connection', c => {
+    conn = c;
+    beaconLog('Poste de commande connecté', 'log-ok');
+    notify('success', 'Poste de commande connecté', 'Liaison P2P WebRTC établie');
+    document.getElementById('b-peer-badge').className = 'badge online';
+    document.getElementById('b-peer-badge').innerHTML = '<span class="dot"></span> Commandé';
+    conn.on('data', handleBeaconCommand);
+    conn.on('close', () => {
+      beaconLog('Poste de commande déconnecté', 'log-err');
+      notify('warn', 'Poste de commande déconnecté', 'La liaison P2P a été perdue');
+      document.getElementById('b-peer-badge').className = 'badge warning';
+      document.getElementById('b-peer-badge').textContent = 'Déconnecté';
+      conn = null;
+    });
+  });
+  peer.on('error', e => {
+    beaconLog(`Erreur réseau: ${e.type}`, 'log-err');
+    notify('error', 'Erreur réseau P2P', `Type: ${e.type} — Vérifiez votre connexion internet`);
+    document.getElementById('b-peer-badge').className = 'badge offline';
+    document.getElementById('b-peer-badge').textContent = 'Erreur réseau';
+  });
+  peer.on('disconnected', () => {
+    beaconLog('Déconnecté du serveur P2P', 'log-err');
+    notify('warn', 'Serveur P2P inaccessible', 'Tentative de reconnexion automatique...');
+    setTimeout(() => { try { peer.reconnect(); } catch(e){} }, 3000);
+  });
+}
+
+function handleBeaconCommand(data) {
+  if (data.cmd === 'start') {
+    startBeacon();
+    notify('info', 'Commande reçue', 'Démarrage ordonné par le poste de commande');
+  }
+  if (data.cmd === 'stop') {
+    stopBeacon();
+    notify('warn', 'Arrêt commandé', 'Stop ordonné par le poste de commande');
+  }
+}
+
+function regenUUID() {
+  if (isRunning) { notify('warn', 'Balise active', 'Arrêtez la balise avant de régénérer l\'UUID'); return; }
+  if (peer) { try { peer.destroy(); } catch(e){} }
+  beaconUUID = genUUID();
+  document.getElementById('beacon-uuid').textContent = beaconUUID;
+  initPeerBeacon();
+  beaconLog('UUID régénéré');
+  notify('info', 'UUID régénéré', `Nouveau code: ${beaconUUID}`);
+}
+
+function copyUUID() {
+  navigator.clipboard.writeText(beaconUUID)
+    .then(() => notify('success', 'UUID copié', `Code ${beaconUUID} dans le presse-papiers`))
+    .catch(() => notify('info', 'UUID: ' + beaconUUID, 'Copie manuelle nécessaire'));
+}
+
+function startBeacon() {
+  if (isRunning) return;
+  isRunning = true;
+  document.getElementById('btn-start-beacon').style.display = 'none';
+  document.getElementById('btn-stop-beacon').style.display = 'inline-flex';
+  document.getElementById('b-status-badge').className = 'badge online';
+  document.getElementById('b-status-badge').innerHTML = '<span class="dot"></span> Actif';
+  beaconLog('Démarrage des capteurs...', 'log-ok');
+  startGPS();
+  startMotionSensors();
+  if (conn) conn.send({type:'status', status:'started'});
+}
+
+function stopBeacon() {
+  if (!isRunning) return;
+  isRunning = false;
+  document.getElementById('btn-start-beacon').style.display = 'inline-flex';
+  document.getElementById('btn-stop-beacon').style.display = 'none';
+  document.getElementById('b-status-badge').className = 'badge offline';
+  document.getElementById('b-status-badge').innerHTML = '<span class="dot" style="background:var(--red)"></span> Arrêté';
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  beaconLog('Balise arrêtée');
+  if (conn) conn.send({type:'status', status:'stopped'});
+}
+
+function startGPS() {
+  if (!navigator.geolocation) {
+    notify('error', 'GPS indisponible', 'Ce navigateur ne supporte pas la géolocalisation');
+    beaconLog('GPS non disponible', 'log-err');
+    return;
+  }
+  beaconLog('Acquisition GPS...');
+  watchId = navigator.geolocation.watchPosition(pos => {
+    const {latitude, longitude, altitude, speed, heading, accuracy} = pos.coords;
+    document.getElementById('sc-gps').classList.add('active');
+    document.getElementById('sv-gps').textContent = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
+    document.getElementById('sv-alt').textContent = altitude ? `${altitude.toFixed(1)} m` : '— m';
+    const spd = speed ? (speed * 3.6).toFixed(1) : '0.0';
+    document.getElementById('sv-speed').textContent = `${spd} km/h`;
+    document.getElementById('sv-heading').textContent = heading ? `${heading.toFixed(0)}°` : '—°';
+    document.getElementById('b-gps-badge').className = 'badge online';
+    document.getElementById('b-gps-badge').innerHTML = `<span class="dot"></span> ±${accuracy ? accuracy.toFixed(0) : '?'}m`;
+    const payload = {
+      type:'data', ts: Date.now(),
+      lat: latitude, lon: longitude, alt: altitude || 0,
+      speed: speed ? speed*3.6 : 0,
+      heading: heading || 0, accuracy: accuracy,
+      acc_x: accelData.x, acc_y: accelData.y, acc_z: accelData.z,
+      gyro_a: gyroData.alpha, gyro_b: gyroData.beta, gyro_g: gyroData.gamma
+    };
+    if (conn && conn.open) { try { conn.send(payload); } catch(e){
+      notify('error', 'Erreur d\'envoi P2P', e.message || 'Connexion instable');
+    }}
+  }, err => {
+    const errMsg = {1:'Permission refusée par l\'utilisateur', 2:'Position indisponible', 3:'Délai GPS dépassé'}[err.code] || err.message;
+    beaconLog(`Erreur GPS: ${errMsg}`, 'log-err');
+    notify('error', 'Erreur GPS', errMsg + ` (code ${err.code})`);
+    document.getElementById('b-gps-badge').className = 'badge offline';
+    document.getElementById('b-gps-badge').textContent = 'GPS: erreur';
+  }, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+}
+
+function startMotionSensors() {
+  if (typeof DeviceMotionEvent !== 'undefined') {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      DeviceMotionEvent.requestPermission().then(p => {
+        if (p === 'granted') {
+          window.addEventListener('devicemotion', onMotion);
+          beaconLog('Accéléromètre actif', 'log-ok');
+        } else {
+          notify('warn', 'Permission accéléromètre refusée', 'Les données de force G ne seront pas disponibles');
+          beaconLog('Permission accéléromètre refusée', 'log-err');
+        }
+      }).catch(e => {
+        notify('error', 'Erreur accéléromètre', e.message || String(e));
+        beaconLog('Accél: ' + e, 'log-err');
+      });
+    } else {
+      window.addEventListener('devicemotion', onMotion);
+      beaconLog('Accéléromètre actif', 'log-ok');
+    }
+  } else {
+    notify('warn', 'Accéléromètre indisponible', 'Données d\'accélération non supportées sur cet appareil');
+    beaconLog('Accéléromètre non disponible', 'log-err');
+  }
+
+  if (typeof DeviceOrientationEvent !== 'undefined') {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().then(p => {
+        if (p === 'granted') {
+          window.addEventListener('deviceorientation', onOrientation);
+          beaconLog('Gyroscope actif', 'log-ok');
+        } else {
+          notify('warn', 'Permission gyroscope refusée', 'Les données de rotation ne seront pas disponibles');
+        }
+      }).catch(e => {});
+    } else {
+      window.addEventListener('deviceorientation', onOrientation);
+      beaconLog('Gyroscope actif', 'log-ok');
+    }
+  } else {
+    notify('warn', 'Gyroscope indisponible', 'Données de rotation non supportées');
+    beaconLog('Gyroscope non disponible', 'log-err');
+  }
+}
+
+function onMotion(e) {
+  if (!isRunning) return;
+  const a = e.accelerationIncludingGravity;
+  if (a) {
+    accelData = {x: a.x || 0, y: a.y || 0, z: a.z || 0};
+    document.getElementById('sc-acc').classList.add('active');
+    document.getElementById('sv-acc').textContent =
+      `X:${(a.x||0).toFixed(1)} Y:${(a.y||0).toFixed(1)}`;
+  }
+}
+
+function onOrientation(e) {
+  if (!isRunning) return;
+  gyroData = {alpha: e.alpha||0, beta: e.beta||0, gamma: e.gamma||0};
+  document.getElementById('sc-gyro').classList.add('active');
+  document.getElementById('sv-gyro').textContent =
+    `α:${(e.alpha||0).toFixed(0)} β:${(e.beta||0).toFixed(0)}`;
+}
+
+// ============================================================
+//  CONTROL ROLE — CONNECT
+// ============================================================
+let connCountdownInt = null;
+
+function initControl() {
+  document.getElementById('control-connect').style.display = 'flex';
+  document.getElementById('control-connect').style.flexDirection = 'column';
+  peer = new Peer({
+    host: '0.peerjs.com', port: 443, path: '/', secure: true,
+    config: { iceServers: [
+      {urls:'stun:stun.l.google.com:19302'},
+      {urls:'stun:stun1.l.google.com:19302'}
+    ]}
+  });
+  peer.on('open', id => {
+    document.getElementById('ctrl-peer-badge').className = 'badge online';
+    document.getElementById('ctrl-peer-badge').innerHTML = '<span class="dot"></span> Prêt';
+  });
+  peer.on('error', e => {
+    document.getElementById('ctrl-peer-badge').className = 'badge warning';
+    document.getElementById('ctrl-peer-badge').textContent = 'Erreur réseau';
+    notify('error', 'Erreur réseau P2P', `Type: ${e.type} — Impossible de joindre le serveur de signalisation`);
+  });
+  peer.on('disconnected', () => {
+    notify('warn', 'Déconnecté du serveur P2P', 'Reconnexion en cours...');
+    setTimeout(() => { try { peer.reconnect(); } catch(e){} }, 3000);
+  });
+}
+
+function connectToBeacon() {
+  const uuid = document.getElementById('uuid-input').value.trim();
+  if (uuid.length !== 8) {
+    notify('warn', 'UUID invalide', 'L\'identifiant doit contenir exactement 8 chiffres');
+    return;
+  }
+  if (!peer || peer.destroyed) {
+    notify('error', 'Réseau non initialisé', 'Le module P2P n\'est pas prêt — rechargez la page');
+    return;
+  }
+  document.getElementById('connect-area').style.display = 'none';
+  document.getElementById('connecting-state').style.display = 'block';
+
+  // Countdown
+  let countdown = 10;
+  const cdEl = document.getElementById('conn-countdown');
+  if (cdEl) cdEl.textContent = countdown;
+  connCountdownInt = setInterval(() => {
+    countdown--;
+    if (cdEl) cdEl.textContent = countdown;
+  }, 1000);
+
+  conn = peer.connect(uuid, {reliable: true, serialization: 'json'});
+  const timeout = setTimeout(() => {
+    clearInterval(connCountdownInt);
+    notify('error', 'Connexion impossible', `Aucune balise trouvée avec l'UUID ${uuid}. Vérifiez le code et que la balise est active.`);
+    document.getElementById('connect-area').style.display = 'flex';
+    document.getElementById('connecting-state').style.display = 'none';
+  }, 10000);
+
+  conn.on('open', () => {
+    clearTimeout(timeout);
+    clearInterval(connCountdownInt);
+    beaconUUID = uuid;
+    notify('success', 'Balise connectée', `Liaison P2P avec la balise #${uuid} établie`);
+    openControlPanel(uuid);
+  });
+  conn.on('error', e => {
+    clearTimeout(timeout);
+    clearInterval(connCountdownInt);
+    const errDetail = e?.type ? `Type: ${e.type}` : String(e);
+    notify('error', 'Échec de connexion', errDetail + ' — Vérifiez que la balise est démarrée et en ligne');
+    document.getElementById('connect-area').style.display = 'flex';
+    document.getElementById('connecting-state').style.display = 'none';
+  });
+  conn.on('data', handleControlData);
+  conn.on('close', () => {
+    document.getElementById('ctrl-conn-badge').className = 'badge offline';
+    document.getElementById('ctrl-conn-badge').innerHTML = 'Déconnecté';
+    document.getElementById('info-conn').textContent = 'Déconnecté';
+    setSignalBars(0);
+    ctrlLog('Balise déconnectée', 'log-err');
+    notify('error', 'Balise déconnectée', 'La liaison P2P a été interrompue. Vérifiez la balise.');
+    if (isRunning) endRace();
+  });
+}
+
+function simulateBeacon() {
+  beaconUUID = 'SIM-DEMO';
+  notify('info', 'Mode simulation activé', 'Données GPS et capteurs générées automatiquement');
+  openControlPanel('DEMO');
+  startSimulation();
+}
+
+function openControlPanel(uuid) {
+  document.getElementById('control-connect').style.display = 'none';
+  const cp = document.getElementById('control-page');
+  cp.style.display = 'flex';
+  document.getElementById('ctrl-uuid-display').textContent = `#${uuid}`;
+  document.getElementById('stats-uuid-display').textContent = `Balise #${uuid}`;
+  document.getElementById('ctrl-conn-badge').className = 'badge online';
+  document.getElementById('ctrl-conn-badge').innerHTML = `
+    <div class="signal-bars">
+      <div class="signal-bar active" id="sig1"></div>
+      <div class="signal-bar active" id="sig2"></div>
+      <div class="signal-bar active" id="sig3"></div>
+      <div class="signal-bar" id="sig4"></div>
+    </div>
+    Connecté
+  `;
+  document.getElementById('info-conn').textContent = 'P2P WebRTC actif';
+  initMap();
+  initMiniCharts();
+  ctrlLog('Connexion établie avec balise #' + uuid, 'log-ok');
+}
+
+// ============================================================
+//  MAP INIT & LAYERS
+// ============================================================
+function initMap() {
+  map = L.map('map', {zoomControl: true, attributionControl: true}).setView([48.8566, 2.3522], 17);
+  setMapLayer(0);
+
+  const carIcon = L.divIcon({
+    html: `<div style="background:var(--accent);width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 0 14px rgba(249,115,22,.9);display:flex;align-items:center;justify-content:center;">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 7 L5 2 L8 7" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="3" y1="7" x2="7" y2="7" stroke="white" stroke-width="1"/></svg>
+    </div>`,
+    className:'', iconSize:[20,20], iconAnchor:[10,10]
+  });
+  mapMarker = L.marker([48.8566,2.3522], {icon:carIcon}).addTo(map);
+  mapPolyline = L.polyline([], {color:'#f97316', weight:3.5, opacity:.9}).addTo(map);
+
+  // Handle tile errors
+  map.on('tileerror', e => {
+    // Only notify once per layer switch
+  });
+}
+
+function setMapLayer(idx) {
+  const layer = MAP_LAYERS[idx];
+  if (!layer) return;
+  if (currentTileLayer && map) {
+    map.removeLayer(currentTileLayer);
+  }
+  const opts = {
+    attribution: layer.attr,
+    maxZoom: layer.maxZoom
+  };
+  if (layer.subdomains) opts.subdomains = layer.subdomains;
+  currentTileLayer = L.tileLayer(layer.url, opts);
+  currentTileLayer.addTo(map);
+  currentTileLayer.on('tileerror', e => {
+    // Silently try next layer if current fails
+  });
+  currentLayerIdx = idx;
+}
+
+function toggleMapLayer() {
+  const nextIdx = (currentLayerIdx + 1) % MAP_LAYERS.length;
+  setMapLayer(nextIdx);
+  notify('info', 'Fond de carte changé', MAP_LAYERS[nextIdx].name);
+}
+
+// ============================================================
+//  SIMULATION
+// ============================================================
+let simLat = 47.9965, simLon = 0.1973, simSpeed = 0, simAlt = 85, simHeading = 45;
+let simT = 0;
+
+function startSimulation() {
+  if (simInterval) clearInterval(simInterval);
+  simInterval = setInterval(() => {
+    simT += 0.5;
+    simSpeed = Math.max(0, 28 + 22*Math.sin(simT*0.3) + 10*Math.sin(simT*0.7) + (Math.random()-0.5)*4);
+    simAlt = 85 - simT*0.3 + 5*Math.sin(simT*0.2);
+    simHeading = (simHeading + 2.5 + (Math.random()-0.5)*8 + 360) % 360;
+    const v = simSpeed / 3.6;
+    const rad = simHeading * Math.PI / 180;
+    simLat += (v * Math.cos(rad)) / 111320;
+    simLon += (v * Math.sin(rad)) / (111320 * Math.cos(simLat*Math.PI/180));
+    const payload = {
+      type: 'data', ts: Date.now(),
+      lat: simLat, lon: simLon, alt: simAlt,
+      speed: simSpeed, heading: simHeading, accuracy: 3,
+      acc_x: (Math.random()-0.5)*4,
+      acc_y: (Math.random()-0.5)*4,
+      acc_z: 9.8 + (Math.random()-0.5)*2,
+      gyro_a: (Math.random()-0.5)*18,
+      gyro_b: (Math.random()-0.5)*18,
+      gyro_g: (Math.random()-0.5)*18
+    };
+    handleControlData(payload);
+  }, 500);
+}
+
+// ============================================================
+//  MINI CHARTS
+// ============================================================
+function initMiniCharts() {
+  const opts = {
+    responsive:true, maintainAspectRatio:false, animation:{duration:0},
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{display:false},
+      y:{display:true, ticks:{color:'#64748b',font:{size:9}}, grid:{color:'#1e293b'}}
+    }
+  };
+  speedChartInst = new Chart(document.getElementById('speed-chart'), {
+    type:'line',
+    data:{ labels:[], datasets:[{label:'km/h',data:[],borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.1)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]},
+    options: JSON.parse(JSON.stringify(opts))
+  });
+  accelChartInst = new Chart(document.getElementById('accel-chart'), {
+    type:'line',
+    data:{ labels:[], datasets:[
+      {label:'X',data:[],borderColor:'#ef4444',fill:false,tension:.3,pointRadius:0,borderWidth:1.5},
+      {label:'Y',data:[],borderColor:'#22c55e',fill:false,tension:.3,pointRadius:0,borderWidth:1.5},
+      {label:'Z',data:[],borderColor:'#3b82f6',fill:false,tension:.3,pointRadius:0,borderWidth:1.5}
+    ]},
+    options: { ...JSON.parse(JSON.stringify(opts)), plugins:{legend:{display:true, labels:{color:'#64748b',font:{size:9},boxWidth:8}}}}
+  });
+}
+
+// ============================================================
+//  CONTROL DATA HANDLER
+// ============================================================
+let lastSignalUpdate = 0;
+
+function handleControlData(data) {
+  if (data.type === 'status') {
+    ctrlLog(`Statut balise: ${data.status}`);
+    if (data.status === 'stopped') {
+      notify('warn', 'Balise arrêtée', 'La balise a coupé ses capteurs');
+      if (isRunning) endRace();
+    }
+    return;
+  }
+  if (data.type !== 'data') return;
+
+  const now = Date.now();
+
+  // Signal quality (based on data frequency)
+  if (lastDataTime > 0) {
+    const dt = now - lastDataTime;
+    const hz = 1000 / dt;
+    dataFreqSamples.push(hz);
+    if (dataFreqSamples.length > 10) dataFreqSamples.shift();
+    const avgHz = dataFreqSamples.reduce((a,b)=>a+b,0)/dataFreqSamples.length;
+    const el = document.getElementById('info-hz');
+    if (el) el.textContent = avgHz.toFixed(1) + ' Hz';
+
+    // Update signal bars (throttled)
+    if (now - lastSignalUpdate > 2000) {
+      lastSignalUpdate = now;
+      const bars = avgHz > 1.5 ? 4 : avgHz > 1 ? 3 : avgHz > 0.5 ? 2 : 1;
+      setSignalBars(bars);
+    }
+  }
+  lastDataTime = now;
+
+  // GPS badge
+  const accStr = data.accuracy ? `±${data.accuracy.toFixed(0)}m` : '?';
+  document.getElementById('ctrl-gps-badge').className = 'badge ' + (data.accuracy && data.accuracy < 15 ? 'online' : 'warning');
+  document.getElementById('ctrl-gps-badge').innerHTML = `<span class="dot"></span> GPS ${accStr}`;
+
+  // Info tab
+  const elLat = document.getElementById('info-lat');
+  const elLon = document.getElementById('info-lon');
+  const elAcc = document.getElementById('info-acc');
+  if (elLat) elLat.textContent = data.lat.toFixed(6);
+  if (elLon) elLon.textContent = data.lon.toFixed(6);
+  if (elAcc) elAcc.textContent = data.accuracy ? data.accuracy.toFixed(1) + ' m' : '—';
+
+  // GPS accuracy warning
+  if (data.accuracy && data.accuracy > 30 && now - lastDataTime < 200) {
+    ctrlLog(`Précision GPS faible: ±${data.accuracy.toFixed(0)}m`);
+  }
+
+  // Map
+  const latlng = [data.lat, data.lon];
+  if (mapMarker) { mapMarker.setLatLng(latlng); }
+  if (mapPolyline) {
+    mapLatLngs.push(latlng);
+    mapPolyline.setLatLngs(mapLatLngs);
+    if (mapLatLngs.length <= 3) map.setView(latlng, 17);
+  }
+
+  // Speed gauge
+  const spd = data.speed || 0;
+  const gaugeEl = document.getElementById('gauge-speed');
+  const gaugeFill = document.getElementById('gauge-fill');
+  if (gaugeEl) gaugeEl.textContent = spd.toFixed(0);
+  if (gaugeFill) {
+    const maxV = 80;
+    const frac = Math.min(spd / maxV, 1);
+    const circ = 289;
+    gaugeFill.style.strokeDashoffset = circ - frac * circ;
+    // Color gradient by speed
+    const hue = (1 - frac) * 120;
+    gaugeFill.style.stroke = `hsl(${hue},90%,55%)`;
+  }
+
+  // Accel
+  const ax = data.acc_x || 0, ay = data.acc_y || 0, az = data.acc_z || 0;
+  const totalG = Math.sqrt(ax*ax + ay*ay + az*az) / 9.81;
+  const elAT = document.getElementById('accel-total');
+  if (elAT) elAT.textContent = totalG.toFixed(2) + ' g';
+
+  function setBar(id, val, min, max) {
+    const pct = ((val - min) / (max - min)) * 100;
+    const el = document.getElementById(id);
+    if (el) el.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  }
+  setBar('bar-ax', ax, -20, 20);
+  setBar('bar-ay', ay, -20, 20);
+  setBar('bar-az', az, -20, 20);
+  const axFmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + ' m/s²';
+  const elVax = document.getElementById('val-ax');
+  const elVay = document.getElementById('val-ay');
+  const elVaz = document.getElementById('val-az');
+  if (elVax) elVax.textContent = axFmt(ax);
+  if (elVay) elVay.textContent = axFmt(ay);
+  if (elVaz) elVaz.textContent = axFmt(az);
+
+  const elGa = document.getElementById('gyro-a');
+  const elGb = document.getElementById('gyro-b');
+  const elGg = document.getElementById('gyro-g');
+  if (elGa) elGa.textContent = (data.gyro_a||0).toFixed(1) + '°/s';
+  if (elGb) elGb.textContent = (data.gyro_b||0).toFixed(1) + '°/s';
+  if (elGg) elGg.textContent = (data.gyro_g||0).toFixed(1) + '°/s';
+
+  const elCap = document.getElementById('stat-cap');
+  if (elCap) elCap.textContent = (data.heading||0).toFixed(0) + '°';
+
+  const elAlt = document.getElementById('stat-alt');
+  if (elAlt) elAlt.textContent = data.alt ? data.alt.toFixed(1) + ' m' : '— m';
+
+  if (isRunning) {
+    if (spd > maxSpeed) {
+      maxSpeed = spd;
+      const el = document.getElementById('stat-vmax');
+      if (el) el.textContent = maxSpeed.toFixed(1) + ' km/h';
+      const peak = document.getElementById('gauge-peak-val');
+      if (peak) peak.textContent = maxSpeed.toFixed(1);
+    }
+    sumSpeed += spd; countSpeed++;
+    const el2 = document.getElementById('stat-vmoy');
+    if (el2) el2.textContent = (sumSpeed/countSpeed).toFixed(1) + ' km/h';
+
+    if (totalG > maxShock) {
+      maxShock = totalG;
+      const elS = document.getElementById('stat-shock');
+      if (elS) elS.textContent = maxShock.toFixed(2) + ' g';
+      // Alert on high G
+      if (totalG > 4) {
+        notify('warn', 'Choc important détecté', `Force G: ${totalG.toFixed(2)} g à ${spd.toFixed(0)} km/h`);
+      }
+    }
+
+    if (startAlt === null && data.alt) startAlt = data.alt;
+    if (data.alt && startAlt !== null) {
+      const deniv = startAlt - data.alt;
+      const elD = document.getElementById('stat-deniv');
+      if (elD) elD.textContent = deniv.toFixed(1) + ' m';
+    }
+
+    if (racePoints.length > 0) {
+      const last = racePoints[racePoints.length-1];
+      totalDist += calcDistance(last.lat, last.lon, data.lat, data.lon);
+      const elDist = document.getElementById('stat-dist');
+      if (elDist) {
+        elDist.textContent = totalDist < 1000 ?
+          totalDist.toFixed(0) + ' m' : (totalDist/1000).toFixed(2) + ' km';
+      }
+    }
+
+    racePoints.push({...data});
+    const timeLabel = raceStartTime ? fmtTime(now - raceStartTime) : '';
+    speedHistory.push(spd);
+    accelHistory.push({ax, ay, az, totalG});
+    timeLabels.push(timeLabel);
+
+    const el3 = document.getElementById('info-pts');
+    if (el3) el3.textContent = racePoints.length;
+
+    const maxPts = 60;
+    if (speedChartInst) {
+      speedChartInst.data.labels = timeLabels.slice(-maxPts);
+      speedChartInst.data.datasets[0].data = speedHistory.slice(-maxPts);
+      speedChartInst.update('none');
+    }
+    if (accelChartInst) {
+      accelChartInst.data.labels = timeLabels.slice(-maxPts);
+      accelChartInst.data.datasets[0].data = accelHistory.slice(-maxPts).map(a=>a.ax);
+      accelChartInst.data.datasets[1].data = accelHistory.slice(-maxPts).map(a=>a.ay);
+      accelChartInst.data.datasets[2].data = accelHistory.slice(-maxPts).map(a=>a.az);
+      accelChartInst.update('none');
+    }
+  }
+}
+
+// ============================================================
+//  RACE CONTROL
+// ============================================================
+function startRace() {
+  isRunning = true;
+  raceStartTime = Date.now();
+  racePoints = []; speedHistory = []; accelHistory = []; timeLabels = [];
+  maxSpeed = 0; sumSpeed = 0; countSpeed = 0; maxShock = 0; totalDist = 0; startAlt = null;
+  mapLatLngs = [];
+  if (mapPolyline) mapPolyline.setLatLngs([]);
+  const btn = document.getElementById('btn-start-race');
+  btn.disabled = true;
+  btn.innerHTML = `<svg viewBox="0 0 15 15" fill="none" width="15" height="15"><circle cx="7.5" cy="7.5" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M7.5 4.5 L7.5 7.5 L9.5 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> Course en cours...`;
+  document.getElementById('race-timer').classList.add('running');
+  raceTimerInterval = setInterval(updateTimer, 1000);
+  if (conn) conn.send({cmd:'start'});
+  ctrlLog('Course démarrée', 'log-ok');
+  notify('success', 'Chronométrie démarrée', 'Enregistrement de tous les capteurs en cours');
+  if (simInterval === null && beaconUUID === 'SIM-DEMO') startSimulation();
+}
+
+function updateTimer() {
+  if (!raceStartTime) return;
+  document.getElementById('race-timer').textContent = fmtTime(Date.now() - raceStartTime);
+}
+
+function stopRace() {
+  if (!isRunning && racePoints.length === 0) {
+    notify('warn', 'Aucune course active', 'Démarrez la chronométrie d\'abord');
+    return;
+  }
+  endRace();
+  if (conn) conn.send({cmd:'stop'});
+}
+
+function endRace() {
+  isRunning = false;
+  clearInterval(raceTimerInterval);
+  document.getElementById('race-timer').classList.remove('running');
+  if (simInterval) { clearInterval(simInterval); simInterval = null; }
+  const elapsed = raceStartTime ? fmtTime(Date.now() - raceStartTime) : '—';
+  document.getElementById('finish-time-display').textContent = `Temps: ${elapsed}`;
+  document.getElementById('finish-overlay').style.display = 'flex';
+  ctrlLog('Course terminée — ' + racePoints.length + ' points enregistrés');
+  notify('success', 'Course terminée', `${racePoints.length} points · Temps: ${elapsed} · Max: ${maxSpeed.toFixed(1)} km/h`);
+}
+
+// ============================================================
+//  STATS PAGE
+// ============================================================
+function showStats() {
+  document.getElementById('finish-overlay').style.display = 'none';
+  document.getElementById('control-page').style.display = 'none';
+  const sp = document.getElementById('stats-page');
+  sp.style.display = 'flex';
+  sp.style.flexDirection = 'column';
+
+  document.getElementById('sum-vmax').textContent = maxSpeed.toFixed(1) + ' km/h';
+  document.getElementById('sum-vmoy').textContent = (countSpeed > 0 ? (sumSpeed/countSpeed).toFixed(1) : 0) + ' km/h';
+  document.getElementById('sum-dist').textContent = totalDist < 1000 ? totalDist.toFixed(0) + ' m' : (totalDist/1000).toFixed(2) + ' km';
+  document.getElementById('sum-time').textContent = raceStartTime ? fmtTime(Date.now() - raceStartTime) : '—';
+  document.getElementById('sum-shock').textContent = maxShock.toFixed(2) + ' g';
+  const deniv = racePoints.length > 1 && racePoints[0].alt && racePoints[racePoints.length-1].alt ?
+    (racePoints[0].alt - racePoints[racePoints.length-1].alt).toFixed(1) + ' m' : '— m';
+  document.getElementById('sum-deniv').textContent = deniv;
+
+  setTimeout(buildStatsCharts, 120);
+}
+
+let statsMapInst = null;
+let elevChart = null, fullSpeedChart = null, fullAccelChart = null, speedDistChart = null, gyroChart2 = null, headingChart = null;
+
+function buildStatsCharts() {
+  if (statsMapInst) { statsMapInst.remove(); statsMapInst = null; }
+  statsMapInst = L.map('stats-map', {zoomControl:true});
+
+  // Use same layer approach for stats map
+  const sl = MAP_LAYERS[currentLayerIdx];
+  const sopts = {attribution: sl.attr, maxZoom: sl.maxZoom};
+  if (sl.subdomains) sopts.subdomains = sl.subdomains;
+  L.tileLayer(sl.url, sopts).addTo(statsMapInst);
+
+  if (racePoints.length > 0) {
+    const latlngs = racePoints.map(p => [p.lat, p.lon]);
+
+    for (let i = 1; i < latlngs.length; i++) {
+      const spd = racePoints[i].speed || 0;
+      const frac = Math.min(spd / (maxSpeed || 1), 1);
+      const hue = (1 - frac) * 120;
+      L.polyline([latlngs[i-1], latlngs[i]], {
+        color:`hsl(${hue},90%,55%)`, weight:4.5, opacity:.92
+      }).addTo(statsMapInst);
+    }
+
+    const mkStyle = (color, text) => L.divIcon({html:`<div style="background:${color};padding:3px 8px;border-radius:6px;color:white;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);">${text}</div>`,className:'',iconAnchor:[30,12]});
+    L.marker(latlngs[0], {icon:mkStyle('#22c55e','Depart')}).addTo(statsMapInst);
+    L.marker(latlngs[latlngs.length-1], {icon:mkStyle('#ef4444','Arrivee')}).addTo(statsMapInst);
+
+    statsMapInst.fitBounds(latlngs);
+
+    const legend = L.control({position:'bottomright'});
+    legend.onAdd = () => {
+      const div = L.DomUtil.create('div');
+      div.innerHTML = `<div style="background:rgba(17,24,39,.92);padding:8px 12px;border-radius:8px;font-size:11px;color:#e2e8f0;border:1px solid #1e293b;">
+        <div style="font-weight:700;margin-bottom:4px;font-size:10px;color:#94a3b8;">VITESSE</div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="font-size:9px;color:#64748b;">0</span>
+          <div style="width:60px;height:5px;background:linear-gradient(to right,hsl(120,90%,55%),hsl(60,90%,55%),hsl(0,90%,55%));border-radius:3px;"></div>
+          <span style="font-size:9px;color:#64748b;">${maxSpeed.toFixed(0)}</span>
+        </div>
+      </div>`;
+      return div;
+    };
+    legend.addTo(statsMapInst);
+  }
+
+  const labels = racePoints.map((p,i) => raceStartTime ? fmtTime(p.ts - raceStartTime) : String(i));
+  const baseOpts = {
+    responsive:true, maintainAspectRatio:false, animation:{duration:300},
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{display:true, ticks:{color:'#64748b',font:{size:8},maxTicksLimit:6}, grid:{color:'#1e293b'}},
+      y:{display:true, ticks:{color:'#64748b',font:{size:9}}, grid:{color:'#1e293b'}}
+    }
+  };
+
+  if (elevChart) elevChart.destroy();
+  elevChart = new Chart(document.getElementById('elev-chart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[{label:'Altitude (m)',data: racePoints.map(p => p.alt || 0),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.12)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]
+    },
+    options:{...JSON.parse(JSON.stringify(baseOpts)), plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.parsed.y.toFixed(1)} m`}}}}
+  });
+
+  if (fullSpeedChart) fullSpeedChart.destroy();
+  fullSpeedChart = new Chart(document.getElementById('full-speed-chart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[{label:'Vitesse',data: speedHistory,borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.08)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]
+    },
+    options:{...JSON.parse(JSON.stringify(baseOpts)), plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.parsed.y.toFixed(1)} km/h`}}}}
+  });
+
+  if (fullAccelChart) fullAccelChart.destroy();
+  fullAccelChart = new Chart(document.getElementById('full-accel-chart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Total G',data:accelHistory.map(a=>a.totalG),borderColor:'#f97316',fill:false,tension:.3,pointRadius:0,borderWidth:2},
+        {label:'X',data:accelHistory.map(a=>a.ax),borderColor:'#ef4444',fill:false,tension:.3,pointRadius:0,borderWidth:1},
+        {label:'Y',data:accelHistory.map(a=>a.ay),borderColor:'#22c55e',fill:false,tension:.3,pointRadius:0,borderWidth:1},
+        {label:'Z',data:accelHistory.map(a=>a.az),borderColor:'#3b82f6',fill:false,tension:.3,pointRadius:0,borderWidth:1}
+      ]
+    },
+    options:{...JSON.parse(JSON.stringify(baseOpts)),
+      plugins:{legend:{display:true,labels:{color:'#64748b',font:{size:9},boxWidth:10}}}}
+  });
+
+  const bins = 10;
+  const binSize = maxSpeed / bins || 1;
+  const histogram = new Array(bins).fill(0);
+  speedHistory.forEach(s => { const idx = Math.min(Math.floor(s/binSize), bins-1); histogram[idx]++; });
+  const histLabels = Array.from({length:bins}, (_,i) => `${(i*binSize).toFixed(0)}-${((i+1)*binSize).toFixed(0)}`);
+  if (speedDistChart) speedDistChart.destroy();
+  speedDistChart = new Chart(document.getElementById('speed-dist-chart'), {
+    type:'bar',
+    data:{labels:histLabels, datasets:[{label:'Occ.',data:histogram,backgroundColor:'rgba(249,115,22,0.55)',borderColor:'#f97316',borderWidth:1,borderRadius:4}]},
+    options:{...JSON.parse(JSON.stringify(baseOpts)),plugins:{legend:{display:false}}}
+  });
+
+  if (gyroChart2) gyroChart2.destroy();
+  gyroChart2 = new Chart(document.getElementById('gyro-chart'), {
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Alpha',data:racePoints.map(p=>p.gyro_a||0),borderColor:'#a855f7',fill:false,tension:.3,pointRadius:0,borderWidth:1.5},
+      {label:'Beta',data:racePoints.map(p=>p.gyro_b||0),borderColor:'#3b82f6',fill:false,tension:.3,pointRadius:0,borderWidth:1.5},
+      {label:'Gamma',data:racePoints.map(p=>p.gyro_g||0),borderColor:'#22c55e',fill:false,tension:.3,pointRadius:0,borderWidth:1.5}
+    ]},
+    options:{...JSON.parse(JSON.stringify(baseOpts)),plugins:{legend:{display:true,labels:{color:'#64748b',font:{size:9},boxWidth:10}}}}
+  });
+
+  const sectorCount = 12;
+  const sectorSize = 360/sectorCount;
+  const sectorData = new Array(sectorCount).fill(0);
+  racePoints.forEach(p => { const idx = Math.floor((p.heading||0)/sectorSize) % sectorCount; sectorData[idx]++; });
+  const sectorLabels = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','ONO'];
+  if (headingChart) headingChart.destroy();
+  headingChart = new Chart(document.getElementById('heading-chart'), {
+    type:'polarArea',
+    data:{labels:sectorLabels,datasets:[{data:sectorData,backgroundColor:Array.from({length:sectorCount},(_,i)=>`hsla(${i*30},80%,60%,0.55)`)}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{ticks:{color:'#64748b',font:{size:8}},grid:{color:'#1e293b'}}}}
+  });
+}
+
+// ============================================================
+//  ACTIONS
+// ============================================================
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function centerMap() {
+  if (map && mapLatLngs.length > 0) {
+    map.setView(mapLatLngs[mapLatLngs.length-1], 18);
+    notify('info', 'Carte recentrée', 'Vue sur la position actuelle');
+  } else {
+    notify('warn', 'Aucune position', 'Pas encore de données GPS reçues');
+  }
+}
+
+function restartRace() {
+  document.getElementById('finish-overlay').style.display = 'none';
+  document.getElementById('stats-page').style.display = 'none';
+  const cp = document.getElementById('control-page');
+  cp.style.display = 'flex';
+  cp.style.flexDirection = 'column';
+  const btn = document.getElementById('btn-start-race');
+  btn.disabled = false;
+  btn.innerHTML = `<svg viewBox="0 0 15 15" fill="none" width="15" height="15"><path d="M4 2.5 L12 7.5 L4 12.5 Z" fill="currentColor"/></svg> Démarrer la Chronométrie`;
+  document.getElementById('race-timer').textContent = '00:00:00';
+  raceStartTime = null;
+  if (statsMapInst) { statsMapInst.remove(); statsMapInst = null; }
+  notify('info', 'Prêt pour une nouvelle course', 'Données précédentes effacées');
+}
+
+function exportData() {
+  if (racePoints.length === 0) {
+    notify('warn', 'Aucune donnée à exporter', 'Lancez et arrêtez une course d\'abord');
+    return;
+  }
+  const csv = ['timestamp,lat,lon,alt,speed,heading,acc_x,acc_y,acc_z,gyro_a,gyro_b,gyro_g']
+    .concat(racePoints.map(p =>
+      `${p.ts},${p.lat},${p.lon},${p.alt||0},${p.speed||0},${p.heading||0},${p.acc_x||0},${p.acc_y||0},${p.acc_z||0},${p.gyro_a||0},${p.gyro_b||0},${p.gyro_g||0}`
+    )).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `CAS01_${new Date().toISOString().slice(0,10)}_${racePoints.length}pts.csv`;
+  a.click();
+  notify('success', 'Données exportées', `${racePoints.length} points dans le fichier CSV`);
+}
+
+function goHome() {
+  location.reload();
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+window.addEventListener('load', () => {
+  if (!navigator.geolocation) {
+    console.warn('GPS not available');
+  }
+  document.querySelectorAll('.role-card').forEach((c, i) => {
+    c.style.opacity = '0';
+    c.style.transform = 'translateY(24px)';
+    setTimeout(() => {
+      c.style.transition = 'opacity .5s, transform .5s';
+      c.style.opacity = '1';
+      c.style.transform = 'translateY(0)';
+    }, 180 + i * 140);
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const input = document.getElementById('uuid-input');
+    if (input && document.activeElement === input) connectToBeacon();
+  }
+  if (e.key === 'Escape') closeStatModal();
+});
+</script>
+</body>
+</html>
