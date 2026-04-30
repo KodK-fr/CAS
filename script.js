@@ -1,547 +1,3 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CAS-03</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-<!-- NOTIFICATION CONTAINER -->
-<div id="notif-container"></div>
-
-<!-- STAT FULLSCREEN MODAL -->
-<div id="stat-modal">
-  <div class="stat-modal-box">
-    <button class="stat-modal-close" onclick="closeStatModal()">×</button>
-    <div class="stat-modal-label" id="modal-label">—</div>
-    <div class="stat-modal-value" id="modal-value" style="color:var(--accent)">—</div>
-    <div class="stat-modal-unit" id="modal-unit"></div>
-  </div>
-</div>
-
-<!-- ===== SPLASH ===== -->
-<div id="splash">
-  <div class="splash-box">
-    <svg class="splash-logo" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="56" height="56" rx="14" fill="#1a2235"/>
-      <path d="M10 34 L28 18 L46 34" stroke="#f97316" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="18" cy="38" r="4" stroke="#f97316" stroke-width="2.5" fill="none"/>
-      <circle cx="38" cy="38" r="4" stroke="#f97316" stroke-width="2.5" fill="none"/>
-      <path d="M22 38 L34 38" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
-      <path d="M28 18 L28 28" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2"/>
-    </svg>
-    <div class="splash-title"><span>CAS-03</span> Tracker</div>
-    <div class="splash-sub">Système de tracking temps réel<br>pour course de caisse à savon</div>
-    <div class="splash-cards">
-      <div class="role-card" onclick="chooseRole('beacon')">
-        <svg class="role-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="22" cy="22" r="5" fill="#f97316"/>
-          <circle cx="22" cy="22" r="10" stroke="#f97316" stroke-width="1.5" stroke-dasharray="3 2" opacity=".6"/>
-          <circle cx="22" cy="22" r="16" stroke="#f97316" stroke-width="1" stroke-dasharray="2 3" opacity=".3"/>
-          <path d="M22 8 L22 5 M22 39 L22 36 M8 22 L5 22 M39 22 L36 22" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <h2>Balise GPS</h2>
-        <p>Installer sur le véhicule. Transmet position GPS, accéléromètre et gyroscope en temps réel.</p>
-      </div>
-      <div class="role-card" onclick="chooseRole('control')">
-        <svg class="role-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="6" y="14" width="32" height="20" rx="4" stroke="#f97316" stroke-width="1.5"/>
-          <rect x="10" y="18" width="12" height="8" rx="2" fill="#1a2235" stroke="#64748b" stroke-width="1"/>
-          <circle cx="30" cy="19" r="2" fill="#22c55e"/>
-          <circle cx="36" cy="19" r="2" fill="#ef4444"/>
-          <circle cx="30" cy="25" r="2" fill="#3b82f6"/>
-          <circle cx="36" cy="25" r="2" fill="#eab308"/>
-          <path d="M16 34 L14 40 M28 34 L30 40 M14 40 L30 40" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M10 21 L14 21 M10 23 L13 23" stroke="#94a3b8" stroke-width="1"/>
-        </svg>
-        <h2>Poste de Commande</h2>
-        <p>Connectez-vous via UUID. Suivez la course, contrôlez et analysez toutes les données.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== BEACON PAGE ===== -->
-<div id="beacon-page" style="display:none;flex-direction:column;">
-  <div class="topbar">
-    <div class="topbar-title">
-      <svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="3" fill="currentColor"/><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5" opacity=".6"/><circle cx="9" cy="9" r="9" stroke="currentColor" stroke-width=".8" stroke-dasharray="1.5 2" opacity=".3"/></svg>
-      Mode Balise
-    </div>
-    <div class="badge" id="b-gps-badge">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 8 L6 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M3.5 4.5 C3.5 3 4.6 2 6 2 C7.4 2 8.5 3 8.5 4.5" stroke="currentColor" stroke-width="1" fill="none"/></svg>
-      GPS: —
-    </div>
-    <div class="badge" id="b-peer-badge">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6 C2 4 3.5 2.5 6 2.5 C8.5 2.5 10 4 10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/><circle cx="6" cy="8.5" r="1.5" fill="currentColor"/></svg>
-      Pair: attente
-    </div>
-    <div id="b-status-badge" class="badge">
-      <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor" opacity=".3"/><circle cx="5" cy="5" r="2.5" fill="currentColor"/></svg>
-      Arrêté
-    </div>
-  </div>
-  <div class="beacon-content">
-    <div class="uuid-panel">
-      <div class="uuid-label">UUID de la Balise</div>
-      <div class="uuid-display" id="beacon-uuid">— — — —</div>
-      <div class="uuid-sub">Communiquez ce code au poste de commande</div>
-      <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        <button class="btn btn-ghost btn-sm" onclick="copyUUID()">
-          <svg viewBox="0 0 15 15" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 9 L2 2 L9 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/></svg>
-          Copier
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick="regenUUID()">
-          <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C9.5 2 11.3 3 12.3 4.5 M13 7.5 C13 10.5 10.5 13 7.5 13 C5.5 13 3.7 12 2.7 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11 2 L13 4 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9 L2 11 L4 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Régénérer
-        </button>
-      </div>
-    </div>
-    <div class="sensors-grid" id="sensors-grid">
-      <div class="sensor-card" id="sc-gps">
-        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/><path d="M14 17 L14 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 10.5 C8 7 10.7 4.5 14 4.5 C17.3 4.5 20 7 20 10.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M5 9 C5 5 9 2 14 2 C19 2 23 5 23 9" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round" opacity=".4"/></svg>
-        <div class="s-label">GPS</div>
-        <div class="s-value" id="sv-gps">—</div>
-      </div>
-      <div class="sensor-card" id="sc-alt">
-        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><path d="M4 22 L11 10 L17 16 L22 8 L26 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 22 L26 22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".4"/></svg>
-        <div class="s-label">Altitude</div>
-        <div class="s-value" id="sv-alt">— m</div>
-      </div>
-      <div class="sensor-card" id="sc-speed">
-        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><path d="M5 20 A10 10 0 0 1 23 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M14 20 L18 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="14" cy="20" r="2" fill="currentColor"/></svg>
-        <div class="s-label">Vitesse GPS</div>
-        <div class="s-value" id="sv-speed">— km/h</div>
-      </div>
-      <div class="sensor-card" id="sc-acc">
-        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><path d="M14 4 L14 8 M14 20 L14 24 M4 14 L8 14 M20 14 L24 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="14" cy="14" r="6" stroke="currentColor" stroke-width="1.8"/><circle cx="14" cy="14" r="2.5" fill="currentColor" opacity=".6"/></svg>
-        <div class="s-label">Accéléro.</div>
-        <div class="s-value" id="sv-acc">—</div>
-      </div>
-      <div class="sensor-card" id="sc-gyro">
-        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2"/><circle cx="14" cy="14" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M4 14 L10 14 M18 14 L24 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        <div class="s-label">Gyroscope</div>
-        <div class="s-value" id="sv-gyro">—</div>
-      </div>
-      <div class="sensor-card" id="sc-heading">
-        <svg class="s-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M14 7 L14 4 M14 24 L14 21 M7 14 L4 14 M24 14 L21 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M14 10 L16 16 L14 15 L12 16 Z" fill="currentColor"/></svg>
-        <div class="s-label">Cap</div>
-        <div class="s-value" id="sv-heading">—°</div>
-      </div>
-      
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
-      <button class="btn btn-green" id="btn-start-beacon" onclick="startBeacon()">
-        <svg viewBox="0 0 15 15" fill="none"><path d="M4 2.5 L12 7.5 L4 12.5 Z" fill="currentColor"/></svg>
-        Démarrer la Balise
-      </button>
-      <button class="btn btn-red" id="btn-stop-beacon" onclick="stopBeacon()" style="display:none;">
-        <svg viewBox="0 0 15 15" fill="none"><rect x="3" y="3" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
-        Arrêter
-      </button>
-      <button class="btn btn-blue" id="btn-driver-mode" onclick="enterDriverMode()" style="display:none;">
-        <svg viewBox="0 0 15 15" fill="none"><rect x="1.5" y="4" width="12" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="12" r="1.2" fill="currentColor"/><circle cx="9.5" cy="12" r="1.2" fill="currentColor"/></svg>
-        Mode Conduite
-      </button>
-    </div>
-    <div class="status-bar">
-      <h3>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 6 L4 9 L11 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Journal d'activité
-      </h3>
-      <div id="beacon-log"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== DRIVER MODE OVERLAY ===== -->
-<div id="driver-mode" style="display:none;position:fixed;inset:0;z-index:40000;background:var(--bg);flex-direction:column;justify-content:space-between;align-items:center;padding:0;overflow:hidden;">
-  <!-- TOP SECTION: TIME, SLOPE, ALTITUDE -->
-  <div style="width:100%;display:flex;justify-content:space-around;align-items:center;padding:12px 0;background:var(--card);border-bottom:2px solid var(--border);flex-shrink:0;">
-    <div style="text-align:center;">
-      <div style="font-size:0.7rem;color:var(--muted);margin-bottom:2px;">TEMPS</div>
-      <div style="font-size:1.8rem;font-weight:900;color:var(--accent);font-family:monospace;" id="driver-timer">00:00:00</div>
-    </div>
-    <div style="width:2px;height:40px;background:var(--border)"></div>
-    <div style="text-align:center;">
-      <div style="font-size:0.7rem;color:var(--muted);margin-bottom:2px;">PENTE</div>
-      <div style="font-size:1.8rem;font-weight:900;color:var(--yellow);font-family:monospace;" id="driver-slope">0°</div>
-    </div>
-    <div style="width:2px;height:40px;background:var(--border)"></div>
-    <div style="text-align:center;">
-      <div style="font-size:0.7rem;color:var(--muted);margin-bottom:2px;">ALT</div>
-      <div style="font-size:1.8rem;font-weight:900;color:var(--green);font-family:monospace;" id="driver-alt">— m</div>
-    </div>
-  </div>
-
-  <!-- CENTER: GIANT SPEEDOMETER -->
-  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;position:relative;">
-    <!-- Animated background circle -->
-    <div style="position:absolute;width:280px;height:280px;border-radius:50%;background:radial-gradient(ellipse at 40% 40%, rgba(249,115,22,0.15), transparent);pointer-events:none;"></div>
-    
-    <!-- Speedometer circle -->
-    <svg style="width:240px;height:240px;margin-bottom:20px;transform:rotate(-90deg);" viewBox="0 0 240 240">
-      <!-- Background circle -->
-      <circle cx="120" cy="120" r="110" fill="none" stroke="var(--card2)" stroke-width="12" opacity="0.5"/>
-      <!-- Speed gradient fill -->
-      <circle cx="120" cy="120" r="110" fill="none" stroke="var(--accent)" stroke-width="12" stroke-dasharray="690" stroke-dashoffset="690" id="driver-speed-fill" stroke-linecap="round"/>
-    </svg>
-
-    <!-- Speed value center -->
-    <div style="position:absolute;text-align:center;">
-      <div style="font-size:4.5rem;font-weight:900;color:var(--accent);line-height:1;font-family:monospace;" id="driver-speed-val">0</div>
-      <div style="font-size:1rem;color:var(--muted);margin-top:8px;">km/h</div>
-    </div>
-  </div>
-
-  <!-- BOTTOM CONTROLS -->
-  <div style="width:100%;background:var(--card);border-top:2px solid var(--border);padding:16px;display:flex;gap:12px;justify-content:center;flex-shrink:0;">
-    <button class="btn btn-ghost" onclick="exitDriverMode()">
-      <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 L13 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M2 7.5 L5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M2 7.5 L5 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-      Quitter
-    </button>
-    <div style="flex:1;text-align:center;">
-      <div style="font-size:0.75rem;color:var(--muted);">Distance parcourue</div>
-      <div style="font-size:1.4rem;font-weight:700;color:var(--accent2);font-family:monospace;" id="driver-distance">0 km</div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== CONTROL CONNECT OVERLAY ===== -->
-<div id="control-connect" style="display:none;min-height:100vh;flex-direction:column;">
-  <div class="topbar">
-    <div class="topbar-title">
-      <svg viewBox="0 0 18 18" fill="none"><rect x="1" y="5" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/><rect x="3.5" y="7" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1"/><circle cx="13" cy="8" r="1" fill="currentColor"/><circle cx="15.5" cy="8" r="1" fill="currentColor"/><circle cx="13" cy="11" r="1" fill="currentColor"/><circle cx="15.5" cy="11" r="1" fill="currentColor"/></svg>
-      Poste de Commande
-    </div>
-    <div class="badge" id="ctrl-peer-badge">Initialisation...</div>
-  </div>
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;">
-    <div class="uuid-panel" style="max-width:400px;">
-      <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:18px;text-align:left;">Connexion à une Balise</div>
-      <div id="connect-area" style="display:flex;flex-direction:column;gap:10px;">
-        <label class="input-label">UUID de la balise (8 chiffres)</label>
-        <input class="input-styled" id="uuid-input" maxlength="8" placeholder="00000000" type="text" oninput="this.value=this.value.replace(/\D/g,'')"/>
-        <button class="btn btn-accent" onclick="connectToBeacon()" style="width:100%;justify-content:center;">
-          <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C10.5 2 13 4.5 13 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/><circle cx="7.5" cy="10" r="2.5" fill="currentColor"/></svg>
-          Connecter à la Balise
-        </button>
-        <div class="or-div">— ou —</div>
-        <button class="btn btn-ghost" onclick="simulateBeacon()" style="width:100%;justify-content:center;font-size:.82rem;">
-          <svg viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3.5" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 7 L5 9 M7.5 6 L7.5 9 M10 8 L10 9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-          Mode Simulation (démo)
-        </button>
-      </div>
-      <div id="connecting-state" style="display:none;text-align:center;padding:28px;">
-        <div style="margin:0 auto 16px;width:40px;height:40px;">
-          <svg viewBox="0 0 40 40" fill="none" style="animation:spin 1s linear infinite">
-            <circle cx="20" cy="20" r="16" stroke="var(--border2)" stroke-width="4"/>
-            <path d="M20 4 A16 16 0 0 1 36 20" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div style="color:var(--muted);font-size:.88rem;">Connexion en cours...</div>
-        <div style="color:var(--muted);font-size:.75rem;margin-top:6px;opacity:.7;">Timeout dans <span id="conn-countdown">10</span>s</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<!-- ===== CONTROL PAGE ===== -->
-<div id="control-page" style="display:none;flex-direction:column;height:100vh;">
-  <div class="topbar">
-    <div class="topbar-title">
-      <svg viewBox="0 0 18 18" fill="none"><path d="M3 14 L9 5 L15 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="15" r="1.8" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="12" cy="15" r="1.8" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
-      CAS-03 <span id="ctrl-uuid-display" style="color:var(--muted);font-weight:400;font-size:.82rem;margin-left:4px;"></span>
-    </div>
-    <div class="race-timer" id="race-timer">00:00:00</div>
-    <div class="badge" id="ctrl-conn-badge">
-      <div class="signal-bars">
-        <div class="signal-bar" id="sig1"></div>
-        <div class="signal-bar" id="sig2"></div>
-        <div class="signal-bar" id="sig3"></div>
-        <div class="signal-bar" id="sig4"></div>
-      </div>
-      Connecté
-    </div>
-    <div class="badge" id="ctrl-gps-badge">GPS —</div>
-    <button class="btn btn-red btn-sm" id="btn-stop-race" onclick="stopRace()">
-      <svg viewBox="0 0 15 15" fill="none"><rect x="2.5" y="2.5" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
-      Stop
-    </button>
-  </div>
-  <div class="control-body" style="flex:1;overflow:hidden;">
-    <div id="map" style="position:relative;"></div>
-    <div class="right-panel">
-      <div class="panel-tabs">
-        <button class="tab-btn active" onclick="switchTab('speed',this)">
-          <svg viewBox="0 0 13 13" fill="none"><path d="M2 10 A5.5 5.5 0 0 1 11 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/><path d="M6.5 10 L9 5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="10" r="1.2" fill="currentColor"/></svg>
-          Vitesse
-        </button>
-        <button class="tab-btn" onclick="switchTab('accel',this)">
-          <svg viewBox="0 0 13 13" fill="none"><path d="M6.5 2 L6.5 5 M6.5 8 L6.5 11 M2 6.5 L5 6.5 M8 6.5 L11 6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
-          Forces
-        </button>
-        <button class="tab-btn" onclick="switchTab('info',this)">
-          <svg viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M4 5 L9 5 M4 7 L7 7 M4 9 L8 9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-          Info
-        </button>
-      </div>
-
-      <!-- TAB SPEED -->
-      <div class="tab-content active" id="tab-speed">
-        <div class="speed-gauge">
-          <div class="gauge-ring">
-            <svg viewBox="0 0 110 110">
-              <circle class="gauge-bg" cx="55" cy="55" r="46" stroke-dasharray="289" stroke-dashoffset="0"/>
-              <circle class="gauge-fill" id="gauge-fill" cx="55" cy="55" r="46" stroke-dasharray="289" stroke-dashoffset="289"/>
-            </svg>
-            <div class="gauge-label">
-              <span id="gauge-speed">0</span><br>
-              <span class="gauge-unit">km/h</span>
-            </div>
-          </div>
-          <div class="gauge-peak">Max: <span id="gauge-peak-val">0</span> km/h</div>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Vitesse max</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value accent" id="stat-vmax">0 km/h</span>
-            <button class="eye-btn" onclick="openStatModal('Vitesse maximale','stat-vmax','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Vitesse moy.</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value blue" id="stat-vmoy">0 km/h</span>
-            <button class="eye-btn" onclick="openStatModal('Vitesse moyenne','stat-vmoy','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Altitude</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value green" id="stat-alt">— m</span>
-            <button class="eye-btn" onclick="openStatModal('Altitude','stat-alt','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Dénivelé</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value yellow" id="stat-deniv">— m</span>
-            <button class="eye-btn" onclick="openStatModal('Dénivelé','stat-deniv','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Distance</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value" id="stat-dist">0 m</span>
-            <button class="eye-btn" onclick="openStatModal('Distance parcourue','stat-dist','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">Cap</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value" id="stat-cap">—°</span>
-            <button class="eye-btn" onclick="openStatModal('Cap magnétique','stat-cap','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="section-hdr">Courbe de vitesse</div>
-        <div class="mini-chart-wrap"><canvas id="speed-chart"></canvas></div>
-      </div>
-
-      <!-- TAB ACCEL -->
-      <div class="tab-content" id="tab-accel">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;background:var(--card2);border-radius:12px;padding:14px;border:1px solid var(--border);">
-          <div style="flex:1;">
-            <div style="font-size:.72rem;color:var(--muted);margin-bottom:2px;">Accélération totale</div>
-            <div class="stat-value accent" id="accel-total" style="font-size:1.6rem;font-family:monospace;">0.00 g</div>
-          </div>
-          <button class="eye-btn" style="padding:6px 8px;" onclick="openStatModal('Accélération totale','accel-total','')">
-            <svg viewBox="0 0 12 12" fill="none" width="16" height="16"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
-          </button>
-        </div>
-        <div class="section-hdr">Axes d'accélération</div>
-        <div class="accel-bars">
-          <div class="accel-bar">
-            <span class="axis" style="color:var(--red)">X</span>
-            <div class="accel-bar-track"><div class="accel-bar-fill ax-fill" id="bar-ax" style="width:50%"></div></div>
-            <span class="av" id="val-ax">0.00</span>
-          </div>
-          <div class="accel-bar">
-            <span class="axis" style="color:var(--green)">Y</span>
-            <div class="accel-bar-track"><div class="accel-bar-fill ay-fill" id="bar-ay" style="width:50%"></div></div>
-            <span class="av" id="val-ay">0.00</span>
-          </div>
-          <div class="accel-bar">
-            <span class="axis" style="color:var(--accent2)">Z</span>
-            <div class="accel-bar-track"><div class="accel-bar-fill az-fill" id="bar-az" style="width:50%"></div></div>
-            <span class="av" id="val-az">0.00</span>
-          </div>
-        </div>
-        <div class="section-hdr">Gyroscope</div>
-        <div class="gyro-display">
-          <div class="gyro-cell">
-            <div class="gc-label">Roulis (α)</div>
-            <div class="gc-val" id="gyro-a" style="color:var(--purple)">0.0°/s</div>
-          </div>
-          <div class="gyro-cell">
-            <div class="gc-label">Tangage (β)</div>
-            <div class="gc-val" id="gyro-b" style="color:var(--accent2)">0.0°/s</div>
-          </div>
-          <div class="gyro-cell">
-            <div class="gc-label">Lacet (γ)</div>
-            <div class="gc-val" id="gyro-g" style="color:var(--green)">0.0°/s</div>
-          </div>
-        </div>
-        <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;">Courbe accélérations</div>
-        <div class="mini-chart-wrap"><canvas id="accel-chart"></canvas></div>
-        <div class="stat-row" style="margin-top:6px;">
-          <span class="stat-label">Choc max détecté</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value red" id="stat-shock">0.00 g</span>
-            <button class="eye-btn" onclick="openStatModal('Choc maximal détecté','stat-shock','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB INFO -->
-      <div class="tab-content" id="tab-info">
-        <div class="stat-row"><span class="stat-label">Latitude</span><span class="stat-value" id="info-lat">—</span></div>
-        <div class="stat-row"><span class="stat-label">Longitude</span><span class="stat-value" id="info-lon">—</span></div>
-        <div class="stat-row"><span class="stat-label">Précision GPS</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value" id="info-acc">—</span>
-            <button class="eye-btn" onclick="openStatModal('Précision GPS','info-acc','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="stat-row"><span class="stat-label">Points enregistrés</span><span class="stat-value accent" id="info-pts">0</span></div>
-        <div class="stat-row"><span class="stat-label">Fréquence données</span>
-          <div class="stat-value-wrap">
-            <span class="stat-value green" id="info-hz">— Hz</span>
-            <button class="eye-btn" onclick="openStatModal('Fréquence des données','info-hz','')"><svg viewBox="0 0 12 12" fill="none"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.2"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div class="stat-row"><span class="stat-label">Transport</span><span class="stat-value green" id="info-conn">—</span></div>
-        <div class="section-hdr">Journal de données</div>
-        <div id="ctrl-log" style="max-height:220px;overflow-y:auto;"></div>
-      </div>
-
-      <div class="control-btns">
-        <button class="btn btn-green" id="btn-start-race" onclick="startRace()" style="justify-content:center;">
-          <svg viewBox="0 0 15 15" fill="none"><path d="M4 2.5 L12 7.5 L4 12.5 Z" fill="currentColor"/></svg>
-          Démarrer la Chronométrie
-        </button>
-        <div class="ctrl-actions-row">
-          <button class="btn btn-ghost btn-sm" onclick="centerMap()">
-            <svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 2 L7.5 0.5 M7.5 13 L7.5 14.5 M2 7.5 L0.5 7.5 M13 7.5 L14.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2" fill="currentColor" opacity=".4"/></svg>
-            Recentrer
-          </button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleMapLayer()">
-            <svg viewBox="0 0 15 15" fill="none"><path d="M7.5 1 L14 4.5 L7.5 8 L1 4.5 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="none"/><path d="M1 9 L7.5 12.5 L14 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/></svg>
-            Fond carte
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== STATS PAGE ===== -->
-<div id="stats-page" style="display:none;flex-direction:column;overflow-y:auto;">
-  <div class="topbar">
-    <div class="topbar-title">
-      <svg viewBox="0 0 18 18" fill="none"><rect x="1" y="10" width="3" height="7" rx="1" fill="currentColor"/><rect x="6" y="6" width="3" height="11" rx="1" fill="currentColor" opacity=".7"/><rect x="11" y="2" width="3" height="15" rx="1" fill="currentColor" opacity=".5"/><rect x="14" y="8" width="3" height="9" rx="1" fill="currentColor" opacity=".3"/></svg>
-      Analyse Post-Course
-    </div>
-    <div style="color:var(--muted);font-size:.82rem;" id="stats-uuid-display"></div>
-  </div>
-  <div class="action-bar">
-    <button class="btn btn-green btn-sm" onclick="restartRace()">
-      <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C9.5 2 11.3 3 12.3 4.5 M13 7.5 C13 10.5 10.5 13 7.5 13 C5.5 13 3.7 12 2.7 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11 2 L13 4 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Relancer
-    </button>
-    <button class="btn btn-ghost btn-sm" onclick="exportData()">
-      <svg viewBox="0 0 15 15" fill="none"><path d="M7.5 2 L7.5 9 M4 6 L7.5 9 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12 L13 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-      Exporter CSV
-    </button>
-    <button class="btn btn-ghost btn-sm" onclick="goHome()">
-      <svg viewBox="0 0 15 15" fill="none"><path d="M1.5 7 L7.5 2 L13.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="7" width="7" height="6" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
-      Accueil
-    </button>
-  </div>
-  <div class="stats-summary" style="padding:0 24px 0;">
-    <div class="sum-cell"><div class="sv" id="sum-vmax">—</div><div class="sl">Vitesse max</div></div>
-    <div class="sum-cell"><div class="sv" id="sum-vmoy">—</div><div class="sl">Vitesse moy.</div></div>
-    <div class="sum-cell"><div class="sv" id="sum-dist">—</div><div class="sl">Distance</div></div>
-    <div class="sum-cell"><div class="sv" id="sum-time">—</div><div class="sl">Temps de course</div></div>
-    <div class="sum-cell"><div class="sv" id="sum-deniv">—</div><div class="sl">Dénivelé</div></div>
-    <div class="sum-cell"><div class="sv" id="sum-shock">—</div><div class="sl">Choc max</div></div>
-  </div>
-  <div class="stats-grid">
-    <div class="stats-card" style="grid-column:1/-1;">
-      <h3><svg viewBox="0 0 15 15" fill="none"><rect x="1" y="1" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M4 8 C4 6 5 5 7.5 5 C10 5 11 6 11 8" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="7.5" cy="5" r="1.2" fill="currentColor" opacity=".6"/></svg> Tracé Complet du Circuit</h3>
-      <div class="map-full" id="stats-map"></div>
-    </div>
-    <div class="stats-card">
-      <h3><svg viewBox="0 0 15 15" fill="none"><path d="M1 11 L4 7 L7 9 L10 4 L14 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Profil d'Altitude</h3>
-      <div class="chart-wrap"><canvas id="elev-chart"></canvas></div>
-    </div>
-    <div class="stats-card">
-      <h3><svg viewBox="0 0 15 15" fill="none"><path d="M1 11 A7 7 0 0 1 14 11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/><path d="M7.5 11 L10.5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> Courbe de Vitesse</h3>
-      <div class="chart-wrap"><canvas id="full-speed-chart"></canvas></div>
-    </div>
-    <div class="stats-card">
-      <h3><svg viewBox="0 0 15 15" fill="none"><path d="M7.5 1 L7.5 5 M7.5 10 L7.5 14 M1 7.5 L5 7.5 M10 7.5 L14 7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg> Analyse Forces G</h3>
-      <div class="chart-wrap"><canvas id="full-accel-chart"></canvas></div>
-    </div>
-    <div class="stats-card">
-      <h3><svg viewBox="0 0 15 15" fill="none"><rect x="1" y="8" width="3" height="5" rx=".8" fill="currentColor" opacity=".5"/><rect x="6" y="5" width="3" height="8" rx=".8" fill="currentColor" opacity=".7"/><rect x="11" y="2" width="3" height="11" rx=".8" fill="currentColor"/></svg> Distribution Vitesses</h3>
-      <div class="chart-wrap"><canvas id="speed-dist-chart"></canvas></div>
-    </div>
-    <div class="stats-card">
-      <h3><svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2.5 2"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg> Rotations Gyroscope</h3>
-      <div class="chart-wrap"><canvas id="gyro-chart"></canvas></div>
-    </div>
-    <div class="stats-card">
-      <h3><svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 1.5 L7.5 2.5 M7.5 12.5 L7.5 13.5 M1.5 7.5 L2.5 7.5 M12.5 7.5 L13.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M7.5 5 L8.5 8 L7.5 7.5 L6.5 8 Z" fill="currentColor"/></svg> Rose des Directions</h3>
-      <div class="chart-wrap"><canvas id="heading-chart"></canvas></div>
-    </div>
-  </div>
-</div>
-
-<!-- FINISH OVERLAY -->
-<div class="finish-overlay" id="finish-overlay">
-  <div class="finish-box">
-    <svg class="finish-icon" viewBox="0 0 56 56" fill="none">
-      <rect width="56" height="56" rx="14" fill="var(--card2)"/>
-      <rect x="12" y="20" width="32" height="16" rx="2" stroke="var(--accent)" stroke-width="2"/>
-      <path d="M12 24 L44 24 M12 28 L44 28 M12 32 L44 32" stroke="var(--accent)" stroke-width="1.5"/>
-      <path d="M16 20 L16 36 M22 20 L22 36 M28 20 L28 36 M34 20 L34 36 M40 20 L40 36" stroke="var(--bg)" stroke-width="1.5"/>
-    </svg>
-    <h2>Course Terminée</h2>
-    <p id="finish-time-display">Temps: 00:00:00</p>
-    <p style="color:var(--muted);font-size:.82rem;">Que souhaitez-vous faire ?</p>
-    <div class="finish-btns">
-      <button class="btn btn-green btn-sm" onclick="restartRace()">
-        <svg viewBox="0 0 15 15" fill="none"><path d="M2 7.5 C2 4.5 4.5 2 7.5 2 C9.5 2 11.3 3 12.3 4.5 M13 7.5 C13 10.5 10.5 13 7.5 13 C5.5 13 3.7 12 2.7 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11 2 L13 4 L11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Relancer
-      </button>
-      <button class="btn btn-blue btn-sm" onclick="showStats()">
-        <svg viewBox="0 0 15 15" fill="none"><rect x="1" y="8" width="3" height="5" rx=".8" fill="currentColor" opacity=".5"/><rect x="6" y="5" width="3" height="8" rx=".8" fill="currentColor" opacity=".7"/><rect x="11" y="2" width="3" height="11" rx=".8" fill="currentColor"/></svg>
-        Voir les Stats
-      </button>
-      <button class="btn btn-ghost btn-sm" onclick="goHome()">Accueil</button>
-    </div>
-  </div>
-</div>
-
-<script>/*
 // ============================================================
 //  NOTIFICATION SYSTEM
 // ============================================================
@@ -575,7 +31,6 @@ function notify(type, message, detail='', duration=5000) {
   container.appendChild(div);
   requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('show')));
 
-  // Animate progress bar
   const bar = document.getElementById('np_' + id);
   if (bar) {
     bar.style.transition = `width ${duration}ms linear`;
@@ -593,7 +48,6 @@ function dismissNotif(id) {
   setTimeout(() => el.remove(), 350);
 }
 
-// Legacy compat shim
 function showToast(msg, duration=3500) {
   const isError = msg.includes('Erreur') || msg.includes('erreur') || msg.includes('impossible') || msg.includes('Impossible');
   const isWarn = msg.includes('Avertissement') || msg.includes('attention') || msg.includes('Déconnecté');
@@ -617,7 +71,6 @@ function openStatModal(label, elId, unit) {
   const el = document.getElementById(elId);
   if (!el) return;
   let val = el.textContent;
-  // Try to extract just the number for big display
   const numMatch = val.match(/([\d.,-]+)/);
   const restMatch = val.match(/([a-zA-Zéàü°/²%]+)/);
   document.getElementById('modal-label').textContent = label;
@@ -628,7 +81,6 @@ function openStatModal(label, elId, unit) {
     document.getElementById('modal-value').textContent = val;
     document.getElementById('modal-unit').textContent = unit || '';
   }
-  // color matching
   const colors = ['accent','green','blue','red','yellow','purple'];
   let color = 'var(--text)';
   colors.forEach(c => { if (el.classList.contains(c)) color = `var(--${c})`; });
@@ -683,6 +135,14 @@ let currentLayerIdx = 0;
 
 let speedChartInst = null;
 let accelChartInst = null;
+
+// ===== DRIVER MODE STATE =====
+let driverModeActive = false;
+let driverDataInterval = null;
+let lastSlopeValue = 0;
+let maxSlopeValue = 0;
+let sensorSendInterval = null;
+let slopePoints = []; // Track positions for slope calculation in driver mode
 
 // ============================================================
 //  MAP TILE LAYERS (alternatives pour éviter 403)
@@ -774,7 +234,6 @@ function calcDistance(lat1,lon1,lat2,lon2) {
 }
 
 function setSignalBars(strength) {
-  // strength 0-4
   for (let i = 1; i <= 4; i++) {
     const bar = document.getElementById('sig' + i);
     if (bar) bar.classList.toggle('active', i <= strength);
@@ -877,20 +336,45 @@ function startBeacon() {
   isRunning = true;
   document.getElementById('btn-start-beacon').style.display = 'none';
   document.getElementById('btn-stop-beacon').style.display = 'inline-flex';
+  document.getElementById('btn-driver-mode').style.display = 'inline-flex';
   document.getElementById('b-status-badge').className = 'badge online';
   document.getElementById('b-status-badge').innerHTML = '<span class="dot"></span> Actif';
   beaconLog('Démarrage des capteurs...', 'log-ok');
   startGPS();
   startMotionSensors();
+  // Start high-frequency sensor data transmission (50ms = 20 Hz)
+  sensorSendInterval = setInterval(() => {
+    if (conn && conn.open && lastPos) {
+      const payload = {
+        type: 'data', ts: Date.now(),
+        lat: lastPos.latitude, lon: lastPos.longitude, alt: lastPos.altitude || 0,
+        speed: lastPos.speed ? lastPos.speed * 3.6 : 0,
+        heading: lastPos.heading || 0, accuracy: lastPos.accuracy,
+        acc_x: accelData.x, acc_y: accelData.y, acc_z: accelData.z,
+        gyro_a: gyroData.alpha, gyro_b: gyroData.beta, gyro_g: gyroData.gamma
+      };
+      try { conn.send(payload); } catch(e){}
+    }
+  }, 50); // Send sensor data  at 20 Hz for smooth real-time updates
   if (conn) conn.send({type:'status', status:'started'});
 }
 
 function stopBeacon() {
   if (!isRunning) return;
+  // Exit driver mode if active
+  if (driverModeActive) {
+    exitDriverMode();
+  }
   isRunning = false;
   document.getElementById('btn-start-beacon').style.display = 'inline-flex';
   document.getElementById('btn-stop-beacon').style.display = 'none';
+  document.getElementById('btn-driver-mode').style.display = 'none';
   document.getElementById('b-status-badge').className = 'badge offline';
+  // Stop high-frequency sensor transmission
+  if (sensorSendInterval) {
+    clearInterval(sensorSendInterval);
+    sensorSendInterval = null;
+  }
   document.getElementById('b-status-badge').innerHTML = '<span class="dot" style="background:var(--red)"></span> Arrêté';
   if (watchId) navigator.geolocation.clearWatch(watchId);
   beaconLog('Balise arrêtée');
@@ -903,9 +387,10 @@ function startGPS() {
     beaconLog('GPS non disponible', 'log-err');
     return;
   }
-  beaconLog('Acquisition GPS...');
+  beaconLog('Acquisition GPS à haute précision...');
   watchId = navigator.geolocation.watchPosition(pos => {
     const {latitude, longitude, altitude, speed, heading, accuracy} = pos.coords;
+    lastPos = {latitude, longitude, altitude, speed, heading, accuracy}; // Store for frequent sending
     document.getElementById('sc-gps').classList.add('active');
     document.getElementById('sv-gps').textContent = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
     document.getElementById('sv-alt').textContent = altitude ? `${altitude.toFixed(1)} m` : '— m';
@@ -914,6 +399,23 @@ function startGPS() {
     document.getElementById('sv-heading').textContent = heading ? `${heading.toFixed(0)}°` : '—°';
     document.getElementById('b-gps-badge').className = 'badge online';
     document.getElementById('b-gps-badge').innerHTML = `<span class="dot"></span> ±${accuracy ? accuracy.toFixed(0) : '?'}m`;
+    
+    // Add to race points for driver mode if running
+    if (raceStartTime && racePoints.length > 0) {
+      // Only add if at least 5 meters from last point to avoid noise
+      const lastPoint = racePoints[racePoints.length - 1];
+      const dist = calcDistance(lastPoint.lat, lastPoint.lon, latitude, longitude);
+      if (dist >= 5) {
+        const now = Date.now();
+        speedHistory.push(speed ? speed * 3.6 : 0);
+        racePoints.push({lat: latitude, lon: longitude, alt: altitude || 0, speed: speed ? speed * 3.6 : 0, ts: now});
+        if (lastPoint) {
+          totalDist += dist;
+        }
+      }
+    }
+    
+    // Send immediately for very fast updates
     const payload = {
       type:'data', ts: Date.now(),
       lat: latitude, lon: longitude, alt: altitude || 0,
@@ -931,7 +433,7 @@ function startGPS() {
     notify('error', 'Erreur GPS', errMsg + ` (code ${err.code})`);
     document.getElementById('b-gps-badge').className = 'badge offline';
     document.getElementById('b-gps-badge').textContent = 'GPS: erreur';
-  }, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+  }, {enableHighAccuracy:true, maximumAge:0, timeout:8000}); // Reduced timeout for faster updates
 }
 
 function startMotionSensors() {
@@ -1040,7 +542,6 @@ function connectToBeacon() {
   document.getElementById('connect-area').style.display = 'none';
   document.getElementById('connecting-state').style.display = 'block';
 
-  // Countdown
   let countdown = 10;
   const cdEl = document.getElementById('conn-countdown');
   if (cdEl) cdEl.textContent = countdown;
@@ -1052,7 +553,7 @@ function connectToBeacon() {
   conn = peer.connect(uuid, {reliable: true, serialization: 'json'});
   const timeout = setTimeout(() => {
     clearInterval(connCountdownInt);
-    notify('error', 'Connexion impossible', `Aucune balise trouvée avec l'UUID ${uuid}. Vérifiez le code et que la balise est active.`);
+    notify('error', 'Connexion impossible', `Aucune balise trouvée avec l\'UUID ${uuid}. Vérifiez le code et que la balise est active.`);
     document.getElementById('connect-area').style.display = 'flex';
     document.getElementById('connecting-state').style.display = 'none';
   }, 10000);
@@ -1129,9 +630,7 @@ function initMap() {
   mapMarker = L.marker([48.8566,2.3522], {icon:carIcon}).addTo(map);
   mapPolyline = L.polyline([], {color:'#f97316', weight:3.5, opacity:.9}).addTo(map);
 
-  // Handle tile errors
   map.on('tileerror', e => {
-    // Only notify once per layer switch
   });
 }
 
@@ -1149,7 +648,6 @@ function setMapLayer(idx) {
   currentTileLayer = L.tileLayer(layer.url, opts);
   currentTileLayer.addTo(map);
   currentTileLayer.on('tileerror', e => {
-    // Silently try next layer if current fails
   });
   currentLayerIdx = idx;
 }
@@ -1238,7 +736,6 @@ function handleControlData(data) {
 
   const now = Date.now();
 
-  // Signal quality (based on data frequency)
   if (lastDataTime > 0) {
     const dt = now - lastDataTime;
     const hz = 1000 / dt;
@@ -1248,7 +745,6 @@ function handleControlData(data) {
     const el = document.getElementById('info-hz');
     if (el) el.textContent = avgHz.toFixed(1) + ' Hz';
 
-    // Update signal bars (throttled)
     if (now - lastSignalUpdate > 2000) {
       lastSignalUpdate = now;
       const bars = avgHz > 1.5 ? 4 : avgHz > 1 ? 3 : avgHz > 0.5 ? 2 : 1;
@@ -1257,12 +753,10 @@ function handleControlData(data) {
   }
   lastDataTime = now;
 
-  // GPS badge
   const accStr = data.accuracy ? `±${data.accuracy.toFixed(0)}m` : '?';
   document.getElementById('ctrl-gps-badge').className = 'badge ' + (data.accuracy && data.accuracy < 15 ? 'online' : 'warning');
   document.getElementById('ctrl-gps-badge').innerHTML = `<span class="dot"></span> GPS ${accStr}`;
 
-  // Info tab
   const elLat = document.getElementById('info-lat');
   const elLon = document.getElementById('info-lon');
   const elAcc = document.getElementById('info-acc');
@@ -1270,12 +764,10 @@ function handleControlData(data) {
   if (elLon) elLon.textContent = data.lon.toFixed(6);
   if (elAcc) elAcc.textContent = data.accuracy ? data.accuracy.toFixed(1) + ' m' : '—';
 
-  // GPS accuracy warning
-  if (data.accuracy && data.accuracy > 30 && now - lastDataTime < 200) {
+  if (data.accuracy && now - lastDataTime < 200) {
     ctrlLog(`Précision GPS faible: ±${data.accuracy.toFixed(0)}m`);
   }
 
-  // Map
   const latlng = [data.lat, data.lon];
   if (mapMarker) { mapMarker.setLatLng(latlng); }
   if (mapPolyline) {
@@ -1284,7 +776,6 @@ function handleControlData(data) {
     if (mapLatLngs.length <= 3) map.setView(latlng, 17);
   }
 
-  // Speed gauge
   const spd = data.speed || 0;
   const gaugeEl = document.getElementById('gauge-speed');
   const gaugeFill = document.getElementById('gauge-fill');
@@ -1294,12 +785,10 @@ function handleControlData(data) {
     const frac = Math.min(spd / maxV, 1);
     const circ = 289;
     gaugeFill.style.strokeDashoffset = circ - frac * circ;
-    // Color gradient by speed
     const hue = (1 - frac) * 120;
     gaugeFill.style.stroke = `hsl(${hue},90%,55%)`;
   }
 
-  // Accel
   const ax = data.acc_x || 0, ay = data.acc_y || 0, az = data.acc_z || 0;
   const totalG = Math.sqrt(ax*ax + ay*ay + az*az) / 9.81;
   const elAT = document.getElementById('accel-total');
@@ -1350,7 +839,6 @@ function handleControlData(data) {
       maxShock = totalG;
       const elS = document.getElementById('stat-shock');
       if (elS) elS.textContent = maxShock.toFixed(2) + ' g';
-      // Alert on high G
       if (totalG > 4) {
         notify('warn', 'Choc important détecté', `Force G: ${totalG.toFixed(2)} g à ${spd.toFixed(0)} km/h`);
       }
@@ -1474,7 +962,6 @@ function buildStatsCharts() {
   if (statsMapInst) { statsMapInst.remove(); statsMapInst = null; }
   statsMapInst = L.map('stats-map', {zoomControl:true});
 
-  // Use same layer approach for stats map
   const sl = MAP_LAYERS[currentLayerIdx];
   const sopts = {attribution: sl.attr, maxZoom: sl.maxZoom};
   if (sl.subdomains) sopts.subdomains = sl.subdomains;
@@ -1652,6 +1139,137 @@ function goHome() {
 }
 
 // ============================================================
+//  DRIVER MODE
+// ============================================================
+function enterDriverMode() {
+  driverModeActive = true;
+  document.getElementById('driver-mode').classList.add('active');
+  document.getElementById('control-page').style.display = 'none';
+  document.getElementById('beacon-page').style.display = 'none';
+  
+  // Initialize race data
+  if (!raceStartTime) {
+    raceStartTime = Date.now();
+    racePoints = [{lat: lastPos.latitude, lon: lastPos.longitude, alt: lastPos.altitude || 0, speed: 0, ts: raceStartTime}];
+    speedHistory = [0];
+    accelHistory = [];
+    timeLabels = [];
+    maxSpeed = 0;
+    sumSpeed = 0;
+    countSpeed = 0;
+    maxShock = 0;
+    totalDist = 0;
+    startAlt = lastPos.altitude || null;
+    slopePoints = [];
+  }
+  
+  // Request landscape orientation
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(e => {
+      console.log('Cannot lock landscape orientation:', e);
+    });
+  }
+  
+  // Start high-frequency data updates for driver mode
+  driverDataInterval = setInterval(updateDriverMode, 100); // 10 updates per second for smooth animation
+  notify('info', 'Mode Conduite activé', 'Tableau de bord conditions de course');
+}
+
+function exitDriverMode() {
+  driverModeActive = false;
+  document.getElementById('driver-mode').classList.remove('active');
+  
+  if (driverDataInterval) {
+    clearInterval(driverDataInterval);
+    driverDataInterval = null;
+  }
+  
+  // Release orientation lock
+  if (screen.orientation && screen.orientation.unlock) {
+    screen.orientation.unlock();
+  }
+  
+  document.getElementById('beacon-page').style.display = 'flex';
+  notify('info', 'Mode Conduite désactivé', 'Retour à l\'interface de balise');
+}
+
+function updateDriverMode() {
+  if (!raceStartTime) return;
+  
+  // Update timer
+  const elapsed = Date.now() - raceStartTime;
+  document.getElementById('driver-timer').textContent = fmtTime(elapsed);
+  
+  // Update speed with animation
+  if (speedHistory.length > 0) {
+    const currentSpeed = speedHistory[speedHistory.length - 1] || 0;
+    document.getElementById('driver-speed-val').textContent = Math.round(currentSpeed);
+    
+    // Animate the progress circle (0-250 km/h max)
+    const maxDisplaySpeed = 250;
+    const ratio = Math.min(currentSpeed / maxDisplaySpeed, 1);
+    const circumference = 690; // 2 * PI * r (r=110)
+    const offset = circumference * (1 - ratio);
+    document.getElementById('driver-speed-fill').style.strokeDashoffset = offset;
+  }
+  
+  // Update altitude
+  if (lastPos && lastPos.altitude) {
+    document.getElementById('driver-alt').textContent = Math.round(lastPos.altitude) + ' m';
+  }
+  
+  // Update slope (pente)
+  calculateAndDisplaySlope();
+  
+  // Update distance
+  if (racePoints.length > 0) {
+    const distKm = (totalDist / 1000).toFixed(2);
+    document.getElementById('driver-distance').textContent = distKm + ' km';
+  }
+}
+
+function calculateAndDisplaySlope() {
+  if (racePoints.length < 2) {
+    document.getElementById('driver-slope').textContent = '0°';
+    return;
+  }
+  
+  // Get last two points
+  const current = racePoints[racePoints.length - 1];
+  const previous = racePoints[racePoints.length - 2];
+  
+  if (!current || !previous) return;
+  
+  const {lat: lat2, lon: lon2, alt: alt2} = current;
+  const {lat: lat1, lon: lon1, alt: alt1} = previous;
+  
+  // Calculate horizontal distance using haversine formula
+  const R = 6371000; // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + 
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const horizontalDist = R * c;
+  
+  // Calculate vertical elevation difference
+  const verticalDist = alt2 - alt1;
+  
+  // Calculate slope angle in degrees
+  let slope = 0;
+  if (horizontalDist > 1) {
+    slope = Math.atan(verticalDist / horizontalDist) * 180 / Math.PI;
+  }
+  
+  lastSlopeValue = slope;
+  if (Math.abs(slope) > Math.abs(maxSlopeValue)) {
+    maxSlopeValue = slope;
+  }
+  
+  document.getElementById('driver-slope').textContent = slope.toFixed(1) + '°';
+}
+
+// ============================================================
 //  INIT
 // ============================================================
 window.addEventListener('load', () => {
@@ -1676,7 +1294,3 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') closeStatModal();
 });
-*/</script>
-<script src="script.js"></script>
-</body>
-</html>
